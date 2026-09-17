@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: boxpilot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boxpilot
+      POSTGRES_PASSWORD: boxpilot
+      POSTGRES_DB: boxpilot
+    ports:
+      - "5433:5432"
+    volumes:
+      - boxpilot_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boxpilot -d boxpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: boxpilot-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://boxpilot:boxpilot@db:5432/boxpilot?schema=public
+      SESSION_SECRET: replace-with-a-32-character-minimum-secret
+      APP_URL: http://localhost:3000
+      DEMO_ADMIN_EMAIL: admin@boxpilot.local
+      DEMO_ADMIN_PASSWORD: BoxPilot!2026
+    ports:
+      - "3000:3000"
+    command: sh -c "sh scripts/db-setup.sh && npm run start"
+
+volumes:
+  boxpilot_postgres:

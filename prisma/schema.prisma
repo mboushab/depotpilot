@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UnitStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+}
+
+enum RentalStatus {
+  RESERVED
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum RentalType {
+  MONTHLY
+  ONE_TIME
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  DIRECT_DEBIT
+}
+
+enum LoadingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  PAYMENT_DUE
+  PAYMENT_OVERDUE
+  RENTAL_ENDING
+  LOADING_TODAY
+  PARKING_OVERDUE
+  SYSTEM
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Occupant {
+  id         String   @id @default(cuid())
+  firstName  String
+  lastName   String
+  email      String?  @unique
+  phone      String
+  company    String?
+  address    String?
+  city       String?
+  postalCode String?
+  country    String   @default("FR")
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rentals    Rental[]
+  invoices   Invoice[]
+  parkingAssignments ParkingAssignment[]
+}
+
+model StorageUnit {
+  id             String     @id @default(cuid())
+  code           String     @unique
+  position       Int        @unique
+  floor          Int        @default(0)
+  surfaceM2      Decimal    @db.Decimal(6, 2)
+  volumeM3       Decimal    @db.Decimal(7, 2)
+  monthlyRateCents Int
+  status         UnitStatus @default(AVAILABLE)
+  climateControlled Boolean @default(false)
+  accessNote     String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  rentals        Rental[]
+}
+
+model Rental {
+  id                String       @id @default(cuid())
+  occupantId        String
+  unitId            String
+  status            RentalStatus @default(RESERVED)
+  type              RentalType   @default(MONTHLY)
+  startDate         DateTime
+  endDate           DateTime?
+  billingDay        Int
+  depositCents      Int
+  monthlyRateCents  Int
+  accessCode        String
+  exitAlertNotifiedAt DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  occupant          Occupant     @relation(fields: [occupantId], references: [id], onDelete: Restrict)
+  unit              StorageUnit  @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  invoices          Invoice[]
+
+  @@index([occupantId])
+  @@index([unitId])
+  @@index([status])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  occupantId    String
+  rentalId      String?
+  status        InvoiceStatus @default(DRAFT)
+  issueDate     DateTime
+  dueDate       DateTime
+  subtotalCents Int
+  taxCents      Int
+  totalCents    Int
+  paidCents     Int           @default(0)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  occupant      Occupant      @relation(fields: [occupantId], references: [id], onDelete: Restrict)
+  rental        Rental?       @relation(fields: [rentalId], references: [id], onDelete: SetNull)
+  lines         InvoiceLine[]
+  payments      Payment[]
+
+  @@index([occupantId])
+  @@index([status])
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int
+  unitCents   Int
+  totalCents  Int
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  invoiceId   String
+  amountCents Int
+  method      PaymentMethod
+  paidAt      DateTime
+  reference   String?
+  createdAt   DateTime      @default(now())
+  invoice     Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model ParkingAssignment {
+  id          String      @id @default(cuid())
+  occupantId  String
+  vehiclePlate String
+  startDate   DateTime
+  endDate     DateTime?
+  monthlyRateCents Int
+  overdueNotifiedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  occupant    Occupant    @relation(fields: [occupantId], references: [id], onDelete: Restrict)
+
+  @@index([occupantId])
+}
+
+model LoadingBay {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  position    Int      @unique
+  createdAt   DateTime @default(now())
+}
+
+model LoadingAppointment {
+  id          String        @id @default(cuid())
+  clientName  String
+  clientPhone String
+  startsAt    DateTime
+  endsAt      DateTime
+  status      LoadingStatus @default(SCHEDULED)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([startsAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([readAt])
+  @@index([createdAt])
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  label     String
+  updatedAt DateTime @updatedAt
+}
