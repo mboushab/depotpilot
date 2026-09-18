@@ -106,6 +106,7 @@ export async function createUnitAction(_prevState: CreateUnitState, formData: Fo
   await prisma.storageUnit.create({
     data: {
       ...data,
+      surfaceM2: data.surfaceM2 ?? 0,
       floor: 0,
       volumeM3: 0,
       climateControlled: false,
@@ -370,17 +371,62 @@ export async function updateRentalRateAction(
         .filter((line) => line.id !== rentalLine.id)
         .reduce((sum, line) => sum + line.totalCents, 0);
       const newTotalCents = otherLinesTotal + newRateCents;
+
+      // A rental already marked fully paid shouldn't flip back to unpaid
+      // just because the price was corrected upward — treat the increase
+      // as covered too, recorded as its own payment so the ledger stays
+      // accurate.
+      const wasFullyPaid = invoice.paidCents >= invoice.totalCents;
+      let newPaidCents = invoice.paidCents;
+      if (wasFullyPaid && newTotalCents > invoice.paidCents) {
+        const adjustment = newTotalCents - invoice.paidCents;
+        newPaidCents = newTotalCents;
+        await tx.payment.create({
+          data: { invoiceId: invoice.id, amountCents: adjustment, method: "CASH", paidAt: new Date() }
+        });
+      }
+
       await tx.invoice.update({
         where: { id: invoice.id },
         data: {
           subtotalCents: newTotalCents,
           totalCents: newTotalCents,
-          status: deriveInvoiceStatus(newTotalCents, invoice.paidCents, invoice.dueDate)
+          paidCents: newPaidCents,
+          status: deriveInvoiceStatus(newTotalCents, newPaidCents, invoice.dueDate)
         }
       });
     }
   });
 
+  revalidatePath("/boxes");
+  revalidatePath("/invoices");
+  revalidatePath("/clients");
+  return { status: "success" };
+}
+
+export type MarkRentalUnpaidState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
+
+export async function markRentalUnpaidAction(
+  _prevState: MarkRentalUnpaidState,
+  formData: FormData
+): Promise<MarkRentalUnpaidState> {
+  await requireAdmin();
+  const rentalId = String(formData.get("rentalId") ?? "");
+  const rental = await prisma.rental.findUniqueOrThrow({ where: { id: rentalId }, include: { invoices: true } });
+  const paidInvoices = rental.invoices.filter((invoice) => invoice.paidCents > 0);
+  if (paidInvoices.length === 0) {
+    return { status: "error", message: "Ce box n'a aucun paiement enregistré." };
+  }
+
+  await prisma.$transaction([
+    ...paidInvoices.map((invoice) => prisma.payment.deleteMany({ where: { invoiceId: invoice.id } })),
+    ...paidInvoices.map((invoice) =>
+      prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { paidCents: 0, status: deriveInvoiceStatus(invoice.totalCents, 0, invoice.dueDate) }
+      })
+    )
+  ]);
   revalidatePath("/boxes");
   revalidatePath("/invoices");
   revalidatePath("/clients");

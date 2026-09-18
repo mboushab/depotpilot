@@ -26,7 +26,7 @@ export const occupantSchema = z.object({
 
 export const unitSchema = z.object({
   code: z.string().min(2).max(24),
-  surfaceM2: z.coerce.number().positive().max(500),
+  surfaceM2: z.preprocess((val) => (val === "" ? undefined : val), z.coerce.number().positive().max(500).optional()),
   monthlyRateCents: z.coerce.number().int().min(0).max(500000),
   accessNote: z.string().max(240).optional().or(z.literal(""))
 });

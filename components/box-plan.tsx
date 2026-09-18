@@ -12,10 +12,12 @@ import {
   releaseRentalAction,
   confirmBoxPaymentAction,
   updateRentalRateAction,
+  markRentalUnpaidAction,
   type ExtendRentalState,
   type ReleaseRentalState,
   type ConfirmBoxPaymentState,
-  type UpdateRentalRateState
+  type UpdateRentalRateState,
+  type MarkRentalUnpaidState
 } from "@/server/actions/forms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -227,7 +229,11 @@ function BoxDetails({
           <Row label="Loyer" value={`${formatCurrency(box.monthlyRateCents)} / mois`} />
         )}
         {box.activeRental ? (
-          <Row label="Statut" value={box.status === "RESERVED" ? "Réservé" : balance > 0 ? "Impayé" : "Payé"} />
+          box.status !== "RESERVED" && balance <= 0 ? (
+            <StatusRow rentalId={box.activeRental.id} label="Statut" value="Payé" />
+          ) : (
+            <Row label="Statut" value={box.status === "RESERVED" ? "Réservé" : "Impayé"} />
+          )
         ) : null}
         {box.activeRental && paidTotal > 0 && balance > 0 ? (
           <>
@@ -406,6 +412,48 @@ function Row({ label, value, danger }: { label: string; value: string; danger?: 
     <div className="flex justify-between gap-4 border-b pb-2">
       <span className={danger ? "text-red-600" : "text-muted-foreground"}>{label}</span>
       <span className={`text-right font-medium ${danger ? "text-red-600" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function StatusRow({ rentalId, label, value }: { rentalId: string; label: string; value: string }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [state, formAction, isPending] = useActionState(markRentalUnpaidAction, { status: "idle" } as MarkRentalUnpaidState);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      toast.success("Statut mis à jour.");
+    } else if (state.status === "error") {
+      toast.error(state.message);
+    }
+  }, [state]);
+
+  return (
+    <div className="flex justify-between gap-4 border-b pb-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-2 text-right font-medium">
+        {value}
+        <form ref={formRef} action={formAction} onSubmit={() => setConfirmOpen(false)}>
+          <input type="hidden" name="rentalId" value={rentalId} />
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setConfirmOpen(true)}
+            className="text-xs font-normal text-muted-foreground underline hover:text-foreground"
+          >
+            Marquer comme impayé
+          </button>
+        </form>
+      </span>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Marquer ce box comme impayé ?"
+        description="Le paiement enregistré sur ce box sera annulé."
+        confirmLabel="Marquer comme impayé"
+        onConfirm={() => formRef.current?.requestSubmit()}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }
