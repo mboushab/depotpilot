@@ -1,7 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { UnitForm } from "@/components/unit-form";
 import { BoxPlan } from "@/components/box-plan";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function BoxesPage() {
   const [boxes, occupants, settings] = await Promise.all([
@@ -31,12 +29,6 @@ export default async function BoxesPage() {
         <h1 className="text-2xl font-semibold">Box de stockage</h1>
         <p className="text-sm text-muted-foreground">Le dépôt contient exactement 30 box. Ajout bloqué une fois la capacité atteinte.</p>
       </div>
-      {boxes.length < 30 ? (
-        <Card>
-          <CardHeader><CardTitle>Nouveau box</CardTitle></CardHeader>
-          <CardContent><UnitForm /></CardContent>
-        </Card>
-      ) : null}
       <BoxPlan
         boxes={boxes.map((box) => {
           const rental = box.rentals[0];

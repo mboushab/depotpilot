@@ -47,7 +47,7 @@ export function LoadingForm({ onSuccess }: { onSuccess?: () => void }) {
       onSubmit={(event) => {
         const data = new FormData(event.currentTarget);
         const phone = String(data.get("clientPhone") ?? "");
-        if (!isValidFrenchPhone(phone)) {
+        if (phone !== "" && !isValidFrenchPhone(phone)) {
           event.preventDefault();
           setPhoneError("Numéro de téléphone français invalide");
           return;
@@ -58,8 +58,8 @@ export function LoadingForm({ onSuccess }: { onSuccess?: () => void }) {
       className="grid gap-4 md:grid-cols-3"
     >
       <Field label="Client"><Input name="clientName" placeholder="Nom et prénom" required /></Field>
-      <Field label="Téléphone" error={phoneError}>
-        <Input name="clientPhone" placeholder="06 12 34 56 78" required onChange={() => setPhoneError(null)} />
+      <Field label="Téléphone (optionnel)" error={phoneError}>
+        <Input name="clientPhone" placeholder="06 12 34 56 78" onChange={() => setPhoneError(null)} />
       </Field>
       <Field label="Début"><Input type="datetime-local" name="startsAt" min={minStart} required /></Field>
       <Field label="Durée">

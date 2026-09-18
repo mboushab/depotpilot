@@ -3,7 +3,7 @@ import { Document, Page, StyleSheet, Text, View, renderToBuffer } from "@react-p
 import { format } from "date-fns";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { parkingDaysElapsed } from "@/lib/storage-rules";
+import { PARKING_FREE_DAYS } from "@/lib/storage-rules";
 
 const styles = StyleSheet.create({
   page: { padding: 48, fontSize: 12, color: "#152231", fontFamily: "Helvetica" },
@@ -35,8 +35,6 @@ export async function GET(_: Request, { params }: Params) {
     return NextResponse.json({ error: "Attribution de parking introuvable" }, { status: 404 });
   }
 
-  const daysElapsed = parkingDaysElapsed(assignment.startDate);
-
   const buffer = await renderToBuffer(
     <Document title={`Avis de stationnement ${assignment.vehiclePlate}`}>
       <Page size="A5" style={styles.page}>
@@ -53,8 +51,8 @@ export async function GET(_: Request, { params }: Params) {
             <Text>{format(assignment.startDate, "dd/MM/yyyy")}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Text>Jours de stationnement</Text>
-            <Text>{daysElapsed}</Text>
+            <Text>Jours de stationnement gratuit</Text>
+            <Text>{PARKING_FREE_DAYS}</Text>
           </View>
           <View style={styles.detailRow}>
             <Text>Avis imprimé le</Text>

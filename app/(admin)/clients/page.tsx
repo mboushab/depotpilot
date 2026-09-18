@@ -1,37 +1,61 @@
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { AddClientDialog } from "@/components/clients/add-client-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 
-const CLIENT_LIST_LIMIT = 30;
+const PAGE_SIZE = 20;
 
-export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams;
+export default async function ClientsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
+  const { q, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
+  const page = Math.max(1, Number(pageParam) || 1);
 
-  const clients = await prisma.occupant.findMany({
-    where: query
-      ? {
-          OR: [
-            { firstName: { contains: query, mode: "insensitive" } },
-            { lastName: { contains: query, mode: "insensitive" } },
-            { phone: { contains: query } }
-          ]
-        }
-      : undefined,
-    include: { rentals: true, parkingAssignments: true, invoices: true }
-  });
+  const where = query
+    ? {
+        OR: [
+          { firstName: { contains: query, mode: "insensitive" as const } },
+          { lastName: { contains: query, mode: "insensitive" as const } },
+          { phone: { contains: query } }
+        ]
+      }
+    : undefined;
 
-  const sortedClients = clients
-    .map((client) => ({ ...client, hasActiveBox: client.rentals.some((rental) => rental.status === "ACTIVE") }))
-    .sort((a, b) => {
-      if (a.hasActiveBox !== b.hasActiveBox) return a.hasActiveBox ? -1 : 1;
-      return a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName);
-    })
-    .slice(0, CLIENT_LIST_LIMIT);
+  const [clients, total] = await Promise.all([
+    prisma.occupant.findMany({
+      where,
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      include: {
+        _count: {
+          select: {
+            rentals: { where: { status: "ACTIVE" } },
+            parkingAssignments: { where: { endDate: null } }
+          }
+        },
+        invoices: { where: { status: { not: "VOID" } }, select: { totalCents: true, paidCents: true } }
+      }
+    }),
+    prisma.occupant.count({ where })
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const buildHref = (targetPage: number) => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (targetPage > 1) params.set("page", String(targetPage));
+    const qs = params.toString();
+    return qs ? `/clients?${qs}` : "/clients";
+  };
 
   return (
     <div className="space-y-6">
@@ -52,28 +76,31 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
-            <thead><tr><Th>Nom</Th><Th>E-mail</Th><Th>Téléphone</Th><Th>Ville</Th><Th>Box</Th><Th>Parking</Th><Th className="text-right">Solde impayé</Th></tr></thead>
+            <thead><tr><Th>Nom</Th><Th>E-mail</Th><Th>Téléphone</Th><Th>Ville</Th><Th>Box</Th><Th>Parking</Th><Th>Statut paiement</Th><Th className="text-right">Solde impayé</Th></tr></thead>
             <tbody>
-              {sortedClients.map((client) => {
-                const unpaidBalance = client.invoices
-                  .filter((invoice) => invoice.status !== "VOID")
-                  .reduce((sum, invoice) => sum + Math.max(invoice.totalCents - invoice.paidCents, 0), 0);
+              {clients.map((client) => {
+                const unpaidBalance = client.invoices.reduce((sum, invoice) => sum + Math.max(invoice.totalCents - invoice.paidCents, 0), 0);
                 return (
                   <tr key={client.id}>
                     <Td className="font-medium">{client.firstName} {client.lastName}</Td>
                     <Td>{client.email ?? "–"}</Td>
                     <Td>{client.phone}</Td>
                     <Td>{client.city ?? "–"}</Td>
-                    <Td>{client.rentals.filter((rental) => rental.status === "ACTIVE").length}</Td>
-                    <Td>{client.parkingAssignments.filter((assignment) => !assignment.endDate).length}</Td>
+                    <Td>{client._count.rentals}</Td>
+                    <Td>{client._count.parkingAssignments}</Td>
+                    <Td><Badge>{unpaidBalance > 0 ? "PAYMENT_OVERDUE" : "PAID"}</Badge></Td>
                     <Td className={`text-right font-medium ${unpaidBalance > 0 ? "text-red-600" : ""}`}>
                       {unpaidBalance > 0 ? formatCurrency(unpaidBalance) : "À jour"}
                     </Td>
                   </tr>
                 );
               })}
+              {clients.length === 0 ? (
+                <tr><Td colSpan={8} className="text-center text-muted-foreground">Aucun client pour cette recherche.</Td></tr>
+              ) : null}
             </tbody>
           </Table>
+          <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
         </CardContent>
       </Card>
     </div>

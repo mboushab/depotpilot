@@ -1,0 +1,28 @@
+# Production override — used on top of docker-compose.yml (never alone):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This is what packaging/mac/install.sh and the BoxPilot.app launcher use.
+# It only changes network exposure for a client's Mac:
+#   - PostgreSQL is not published to the host at all — only the `app`
+#     service (over the internal Docker network) can reach it.
+#   - The app is bound to 127.0.0.1 only, so BoxPilot is never reachable
+#     from other machines on the same Wi-Fi/LAN, only from this Mac.
+#
+# Everything else (image, volumes, restart policy, healthcheck, env vars)
+# is inherited from docker-compose.yml.
+
+services:
+  db:
+    # `ports:` under a plain key is merged/appended by Compose, not
+    # replaced — `!reset` is required to actually clear the base file's
+    # "5433:5432" publish instead of silently keeping it alongside this.
+    ports: !reset []
+
+  app:
+    # Same merge behavior applies here: without `!override`, this would
+    # add a second, redundant 127.0.0.1 binding on top of the base file's
+    # "3000:3000" (which binds 0.0.0.0, i.e. all interfaces) instead of
+    # replacing it.
+    ports: !override
+      - "127.0.0.1:3000:3000"

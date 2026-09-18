@@ -29,8 +29,8 @@ async function main() {
     await createDemoRental(occupants[1].id, boxes[6].id, boxes[6].code, boxes[6].monthlyRateCents, 0, 2);
   }
 
-  await ensureDemoRental(occupants[0].id, "A-09", "occupied");
-  await ensureDemoRental(occupants[1].id, "A-10", "leavingSoon");
+  await ensureDemoRental(occupants[0].id, "B-08", "occupied");
+  await ensureDemoRental(occupants[1].id, "B-09", "leavingSoon");
 
   if ((await prisma.parkingAssignment.count()) === 0) {
     await prisma.parkingAssignment.create({
@@ -136,17 +136,15 @@ async function seedOccupants() {
 async function seedBoxes() {
   const specs = Array.from({ length: 30 }, (_, index) => {
     const position = index + 1;
-    const aisle = position <= 10 ? "A" : position <= 20 ? "B" : "C";
-    const local = ((position - 1) % 10) + 1;
     const large = position % 5 === 0;
     return {
-      code: `${aisle}-${String(local).padStart(2, "0")}`,
+      code: `B-${String(index).padStart(2, "0")}`,
       position,
-      floor: aisle === "C" ? 1 : 0,
+      floor: position > 20 ? 1 : 0,
       surfaceM2: large ? 12 : position % 3 === 0 ? 8 : 5,
       volumeM3: large ? 32 : position % 3 === 0 ? 21 : 13,
       monthlyRateCents: large ? 18900 : position % 3 === 0 ? 12900 : 7900,
-      climateControlled: aisle === "B",
+      climateControlled: position > 10 && position <= 20,
       status: position === 1 || position === 7 ? "OCCUPIED" as const : "AVAILABLE" as const
     };
   });

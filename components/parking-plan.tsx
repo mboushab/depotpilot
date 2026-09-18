@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useActionState } from "react";
+import { useEffect, useMemo, useRef, useState, useActionState } from "react";
 import { Download } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -10,6 +10,7 @@ import { formatCurrency } from "@/lib/utils";
 import { PARKING_FREE_DAYS, parkingDaysElapsed } from "@/lib/storage-rules";
 import { releaseParkingAction, type ReleaseParkingState } from "@/server/actions/forms";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type ParkedCar = {
   id: string;
@@ -114,6 +115,8 @@ function ParkingDetails({ car }: { car: ParkedCar }) {
 
 function ReleaseParkingButton({ assignmentId }: { assignmentId: string }) {
   const [state, formAction, isPending] = useActionState(releaseParkingAction, { status: "idle" } as ReleaseParkingState);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -124,12 +127,30 @@ function ReleaseParkingButton({ assignmentId }: { assignmentId: string }) {
   }, [state]);
 
   return (
-    <form action={formAction}>
-      <input type="hidden" name="assignmentId" value={assignmentId} />
-      <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? "Enregistrement…" : "Enregistrer la sortie"}
-      </Button>
-    </form>
+    <>
+      <form ref={formRef} action={formAction}>
+        <input type="hidden" name="assignmentId" value={assignmentId} />
+        <Button
+          type="button"
+          className="w-full"
+          disabled={isPending}
+          onClick={() => setConfirmOpen(true)}
+        >
+          {isPending ? "Enregistrement…" : "Enregistrer la sortie"}
+        </Button>
+      </form>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Signaler la sortie de ce véhicule ?"
+        description="Le stationnement sera clôturé et la place redeviendra disponible."
+        confirmLabel="Confirmer la sortie"
+        onConfirm={() => {
+          setConfirmOpen(false);
+          formRef.current?.requestSubmit();
+        }}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </>
   );
 }
 

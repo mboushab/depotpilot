@@ -1,18 +1,24 @@
+# Fixed explicitly so the Postgres volume/network names stay stable
+# (boxpilot_*) no matter what directory this file is copied into — the
+# macOS packaging in packaging/mac/ copies the whole project into
+# /Applications/BoxPilot.app, and re-installs must reuse the same volume.
+name: boxpilot
+
 services:
   db:
     image: postgres:16-alpine
     container_name: boxpilot-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: boxpilot
-      POSTGRES_PASSWORD: boxpilot
-      POSTGRES_DB: boxpilot
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be set in .env}
     ports:
       - "5433:5432"
     volumes:
       - boxpilot_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U boxpilot -d boxpilot"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER must be set in .env} -d ${POSTGRES_DB:?POSTGRES_DB must be set in .env}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,18 +26,27 @@ services:
   app:
     build: .
     container_name: boxpilot-app
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://boxpilot:boxpilot@db:5432/boxpilot?schema=public
-      SESSION_SECRET: replace-with-a-32-character-minimum-secret
-      APP_URL: http://localhost:3000
-      DEMO_ADMIN_EMAIL: admin@boxpilot.local
-      DEMO_ADMIN_PASSWORD: BoxPilot!2026
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER must be set in .env}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@db:5432/${POSTGRES_DB:?POSTGRES_DB must be set in .env}?schema=public
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set in .env}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:?DEMO_ADMIN_EMAIL must be set in .env}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?DEMO_ADMIN_PASSWORD must be set in .env}
     ports:
       - "3000:3000"
     command: sh -c "sh scripts/db-setup.sh && npm run start"
+    healthcheck:
+      # /api/health reports { status, version } (from package.json) and
+      # checks the database connection — see app/api/health/route.ts.
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/health | grep -q '\"status\":\"ok\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   boxpilot_postgres:

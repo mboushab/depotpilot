@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function UnitForm() {
+export function UnitForm({ suggestedCode }: { suggestedCode?: string }) {
   const form = useForm<UnitInput>({
     resolver: zodResolver(unitSchema),
     defaultValues: { floor: 0, climateControlled: false }
@@ -16,9 +16,17 @@ export function UnitForm() {
 
   return (
     <form action={createUnitAction} className="grid gap-4 md:grid-cols-3">
-      <Field label="Code"><Input placeholder="A-101" {...form.register("code")} /></Field>
+      <Field label="Code"><Input placeholder="B-30" defaultValue={suggestedCode} {...form.register("code")} /></Field>
       <Field label="Étage"><Input type="number" {...form.register("floor")} /></Field>
-      <Field label="Tarif mensuel en centimes"><Input type="number" {...form.register("monthlyRateCents")} /></Field>
+      <Field label="Tarif mensuel (€)">
+        <Input
+          type="number"
+          step="0.01"
+          min={0}
+          onChange={(event) => form.setValue("monthlyRateCents", Math.round(Number(event.target.value || "0") * 100))}
+        />
+        <input type="hidden" {...form.register("monthlyRateCents")} />
+      </Field>
       <Field label="Surface m2"><Input type="number" step="0.1" {...form.register("surfaceM2")} /></Field>
       <Field label="Volume m3"><Input type="number" step="0.1" {...form.register("volumeM3")} /></Field>
       <div className="flex items-center gap-3 pt-7">

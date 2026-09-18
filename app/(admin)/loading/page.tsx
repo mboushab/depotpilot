@@ -7,7 +7,12 @@ import { Card, CardContent } from "@/components/ui/card";
 export default async function LoadingPage() {
   const [capacity, appointments] = await Promise.all([
     prisma.loadingBay.count(),
-    prisma.loadingAppointment.findMany({ orderBy: { startsAt: "asc" } })
+    // Only current/future appointments — past ones aren't shown and would
+    // otherwise accumulate here forever.
+    prisma.loadingAppointment.findMany({
+      where: { endsAt: { gte: new Date() } },
+      orderBy: { startsAt: "asc" }
+    })
   ]);
 
   return (

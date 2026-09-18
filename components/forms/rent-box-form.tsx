@@ -32,6 +32,7 @@ export function RentBoxForm({
   const [state, formAction, isPending] = useActionState(createRentalAction, { status: "idle" } as CreateRentalState);
   const today = format(new Date(), "yyyy-MM-dd");
   const [rentalType, setRentalType] = useState<"MONTHLY" | "ONE_TIME">("MONTHLY");
+  const priceCentsRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const pendingSelectId = useRef<string | null>(null);
   const [clientOptions, setClientOptions] = useState(occupants);
@@ -54,14 +55,19 @@ export function RentBoxForm({
   if (state.status === "success") {
     return (
       <div className="space-y-4 py-2 text-center">
-        <p className="text-sm text-muted-foreground">Le box {unitCode} est loué. Vous pouvez imprimer la facture.</p>
+        <p className="text-sm text-muted-foreground">
+          Le box {unitCode} est loué.{" "}
+          {state.paid ? "Vous pouvez imprimer la facture." : "Le paiement n'a pas encore été enregistré."}
+        </p>
         <div className="flex justify-center gap-2">
-          <Button asChild variant="outline">
-            <a href={`/api/invoices/${state.invoiceId}/pdf`} target="_blank" rel="noreferrer">
-              <Download className="h-4 w-4" />
-              Imprimer la facture
-            </a>
-          </Button>
+          {state.paid ? (
+            <Button asChild variant="outline">
+              <a href={`/api/invoices/${state.invoiceId}/pdf`} target="_blank" rel="noreferrer">
+                <Download className="h-4 w-4" />
+                Imprimer la facture
+              </a>
+            </Button>
+          ) : null}
           <Button onClick={onClose}>Fermer</Button>
         </div>
       </div>
@@ -128,7 +134,21 @@ export function RentBoxForm({
           </>
         )}
       </Field>
-      <Field label="Prix"><Input type="number" name="monthlyRateCents" defaultValue={monthlyRateCents} required /></Field>
+      <Field label={rentalType === "ONE_TIME" ? "Prix total (€)" : "Prix (€ / mois)"}>
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          defaultValue={(monthlyRateCents / 100).toFixed(2)}
+          onChange={(event) => {
+            if (priceCentsRef.current) {
+              priceCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
+            }
+          }}
+          required
+        />
+        <input type="hidden" name="monthlyRateCents" ref={priceCentsRef} defaultValue={monthlyRateCents} />
+      </Field>
       <div className="flex items-center gap-3 rounded-md border bg-white px-3">
         <input id="paidNow" type="checkbox" name="paidNow" className="h-4 w-4" />
         <Label htmlFor="paidNow">Le client paie maintenant</Label>

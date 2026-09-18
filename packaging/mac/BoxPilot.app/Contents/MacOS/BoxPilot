@@ -1,0 +1,119 @@
+#!/bin/bash
+# Launcher for the BoxPilot.app bundle.
+#
+# This script does NOT run the app itself. It makes sure Docker Desktop is
+# running, starts the BoxPilot containers (Postgres + the Next.js app) via
+# docker compose, waits for the app to answer on localhost, then opens it
+# in the default browser. It is meant to be double-clicked from Finder or
+# the Dock by a non-technical user, so it never opens a Terminal window and
+# only talks to the user through native macOS dialogs (osascript).
+#
+# All real secrets and the compose file actually used at runtime live in
+# ~/Library/Application Support/BoxPilot/ (written by install.sh), not in
+# this app bundle. PROJECT_DIR below only supplies the source code Docker
+# builds from (via --project-directory).
+
+set -u
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../Resources/project" && pwd)"
+SUPPORT_DIR="$HOME/Library/Application Support/BoxPilot"
+SUPPORT_ENV="$SUPPORT_DIR/.env"
+SUPPORT_COMPOSE="$SUPPORT_DIR/docker-compose.yml"
+# Removes PostgreSQL's host port entirely and binds the app to 127.0.0.1
+# only, so BoxPilot is never reachable from other machines on the network.
+SUPPORT_COMPOSE_PROD="$SUPPORT_DIR/docker-compose.prod.yml"
+APP_URL="http://localhost:3000"
+LOG_FILE="$SUPPORT_DIR/logs/launcher.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+
+notify() {
+  osascript -e "display dialog \"$1\" with title \"BoxPilot\" buttons {\"OK\"} default button 1 with icon caution" >/dev/null 2>&1
+}
+
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+find_docker_compose() {
+  if docker compose version >/dev/null 2>&1; then
+    echo "docker compose"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    echo "docker-compose"
+  else
+    echo ""
+  fi
+}
+
+log "Launching BoxPilot (project: $PROJECT_DIR, config: $SUPPORT_DIR)"
+
+# 0. install.sh must have run at least once to create the production .env
+#    and compose file. This should never happen in the client's normal
+#    flow — it's a developer setup error, not something the client can fix.
+if [ ! -f "$SUPPORT_ENV" ] || [ ! -f "$SUPPORT_COMPOSE" ] || [ ! -f "$SUPPORT_COMPOSE_PROD" ]; then
+  notify "La configuration de BoxPilot est incomplète. Merci de contacter votre prestataire."
+  log "Missing $SUPPORT_ENV, $SUPPORT_COMPOSE or $SUPPORT_COMPOSE_PROD. Aborting."
+  exit 1
+fi
+
+# 1. Make sure Docker Desktop is installed.
+if [ ! -d "/Applications/Docker.app" ] && ! command -v docker >/dev/null 2>&1; then
+  notify "Docker Desktop est introuvable sur cet ordinateur. Merci de contacter votre prestataire pour terminer l'installation de BoxPilot."
+  log "Docker Desktop not found. Aborting."
+  exit 1
+fi
+
+# 2. Make sure the Docker daemon is running; start Docker Desktop otherwise.
+if ! docker info >/dev/null 2>&1; then
+  log "Docker daemon not responding, starting Docker Desktop..."
+  open -a Docker
+
+  # A full cold boot (Mac just switched on) can take Docker Desktop's VM
+  # much longer to come up than a normal relaunch — 3 minutes gives it
+  # room without the client seeing a false "it failed" dialog while the
+  # containers are actually still coming up fine in the background
+  # (restart: unless-stopped means they don't need this script at all
+  # once the Docker daemon itself is ready).
+  WAITED=0
+  until docker info >/dev/null 2>&1; do
+    sleep 2
+    WAITED=$((WAITED + 2))
+    if [ "$WAITED" -ge 180 ]; then
+      notify "Docker met du temps à démarrer (ça peut arriver juste après avoir allumé l'ordinateur). Patientez une minute puis ouvrez à nouveau BoxPilot, ou essayez directement http://localhost:3000 dans votre navigateur."
+      log "Timed out waiting for Docker daemon."
+      exit 1
+    fi
+  done
+fi
+
+COMPOSE="$(find_docker_compose)"
+if [ -z "$COMPOSE" ]; then
+  notify "Docker Compose est introuvable. Merci de contacter votre prestataire."
+  log "docker compose not available."
+  exit 1
+fi
+
+# 3. Start (or reuse) the BoxPilot containers. This is a no-op if they are
+#    already running and only rebuilds the image if the app's code changed.
+#    --project-directory points builds/relative paths at the embedded
+#    source in this app bundle, while -f/--env-file point at the real
+#    config in Application Support.
+if ! $COMPOSE --env-file "$SUPPORT_ENV" -f "$SUPPORT_COMPOSE" -f "$SUPPORT_COMPOSE_PROD" --project-directory "$PROJECT_DIR" up -d --build >> "$LOG_FILE" 2>&1; then
+  notify "BoxPilot n'a pas pu démarrer. Consultez le journal ($LOG_FILE) ou contactez votre prestataire."
+  log "docker compose up failed."
+  exit 1
+fi
+
+# 4. Wait for the app to actually answer before opening the browser.
+WAITED=0
+until curl -sf -o /dev/null "$APP_URL"; do
+  sleep 2
+  WAITED=$((WAITED + 2))
+  if [ "$WAITED" -ge 180 ]; then
+    notify "BoxPilot met plus de temps que prévu à démarrer (premier lancement après un redémarrage ou une mise à jour). Patientez une minute puis réessayez, ou ouvrez directement http://localhost:3000 dans votre navigateur — l'application est probablement déjà prête."
+    log "Timed out waiting for $APP_URL."
+    exit 1
+  fi
+done
+
+log "BoxPilot is up, opening $APP_URL"
+open "$APP_URL"

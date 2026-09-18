@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { addDays, addHours, addMonths } from "date-fns";
+import { addDays, addHours, addMonths, differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { calculateInvoiceTotals, computeDueDate, buildInvoiceNumber, deriveInvoiceStatus } from "@/lib/billing";
 import { formatCurrency } from "@/lib/utils";
@@ -67,12 +67,13 @@ export async function createUnitAction(formData: FormData) {
     }
   });
   revalidatePath("/boxes");
-  redirect("/boxes");
+  revalidatePath("/settings");
+  redirect("/settings");
 }
 
 export type CreateRentalState =
   | { status: "idle" }
-  | { status: "success"; invoiceId: string }
+  | { status: "success"; invoiceId: string; paid: boolean }
   | { status: "error"; message: string };
 
 export async function createRentalAction(_prevState: CreateRentalState, formData: FormData): Promise<CreateRentalState> {
@@ -91,15 +92,15 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
   const depositCents = depositEnabled ? data.depositCents : 0;
   const invoiceCount = await prisma.invoice.count();
   const issueDate = new Date();
-  const rentalQuantity = data.type === "ONE_TIME" ? data.durationDays ?? 1 : 1;
   const invoiceLines = [
     ...(depositCents > 0 ? [{ quantity: 1, unitCents: depositCents }] : []),
-    { quantity: rentalQuantity, unitCents: data.monthlyRateCents }
+    { quantity: 1, unitCents: data.monthlyRateCents }
   ];
   const totals = calculateInvoiceTotals(invoiceLines);
   const paidCents = data.paidNow ? totals.totalCents : 0;
   const invoiceStatus = deriveInvoiceStatus(totals.totalCents, paidCents, computeDueDate(issueDate), issueDate);
   const endDate = data.type === "ONE_TIME" && data.durationDays ? addDays(data.startDate, data.durationDays) : null;
+  const isFutureStart = differenceInCalendarDays(data.startDate, new Date()) > 0;
 
   const invoiceId = await prisma.$transaction(async (tx) => {
     const rental = await tx.rental.create({
@@ -119,7 +120,7 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
 
     await tx.storageUnit.update({
       where: { id: data.unitId },
-      data: { status: "OCCUPIED" }
+      data: { status: isFutureStart ? "RESERVED" : "OCCUPIED" }
     });
 
     const invoice = await tx.invoice.create({
@@ -146,10 +147,13 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
                 }]
               : []),
             {
-              description: `Location box ${unit.code}`,
-              quantity: rentalQuantity,
+              description:
+                data.type === "ONE_TIME"
+                  ? `Location box ${unit.code} (${data.durationDays} jours, ${formatCurrency(data.monthlyRateCents)} au total)`
+                  : `Location box ${unit.code}`,
+              quantity: 1,
               unitCents: data.monthlyRateCents,
-              totalCents: data.monthlyRateCents * rentalQuantity
+              totalCents: data.monthlyRateCents
             }
           ]
         }
@@ -167,20 +171,12 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
       });
     }
 
-    await tx.notification.create({
-      data: {
-        type: "SYSTEM",
-        title: "Location activée",
-        message: `Le box ${unit.code} est occupé depuis aujourd'hui.`
-      }
-    });
-
     return invoice.id;
   });
 
   revalidatePath("/boxes");
   revalidatePath("/invoices");
-  return { status: "success", invoiceId };
+  return { status: "success", invoiceId, paid: data.paidNow };
 }
 
 export type ReleaseRentalState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
@@ -193,26 +189,11 @@ export async function releaseRentalAction(_prevState: ReleaseRentalState, formDa
     include: { occupant: true, unit: true, invoices: true }
   });
   const unpaidInvoices = rental.invoices.filter((invoice) => invoice.status !== "VOID" && invoice.paidCents < invoice.totalCents);
-  const unpaidBalance = unpaidInvoices.reduce((sum, invoice) => sum + (invoice.totalCents - invoice.paidCents), 0);
 
   await prisma.$transaction([
     prisma.rental.update({ where: { id: rentalId }, data: { status: "ENDED", endDate: new Date() } }),
     prisma.storageUnit.update({ where: { id: rental.unitId }, data: { status: "AVAILABLE" } }),
-    ...unpaidInvoices.map((invoice) => prisma.invoice.update({ where: { id: invoice.id }, data: { status: "OVERDUE" } })),
-    prisma.notification.create({
-      data:
-        unpaidBalance > 0
-          ? {
-              type: "PAYMENT_OVERDUE",
-              title: "Créance client",
-              message: `${rental.occupant.firstName} ${rental.occupant.lastName} a libéré le box ${rental.unit.code} avec un solde impayé de ${formatCurrency(unpaidBalance)}.`
-            }
-          : {
-              type: "SYSTEM",
-              title: "Box libéré",
-              message: `Le box ${rental.unit.code} est disponible.`
-            }
-    })
+    ...unpaidInvoices.map((invoice) => prisma.invoice.update({ where: { id: invoice.id }, data: { status: "OVERDUE" } }))
   ]);
   revalidatePath("/boxes");
   revalidatePath("/invoices");
@@ -295,13 +276,6 @@ export async function createPaymentAction(formData: FormData) {
     prisma.invoice.update({
       where: { id: data.invoiceId },
       data: { paidCents, status }
-    }),
-    prisma.notification.create({
-      data: {
-        type: "PAYMENT_DUE",
-        title: "Paiement enregistré",
-        message: `Paiement de ${(data.amountCents / 100).toFixed(2)} EUR enregistré.`
-      }
     })
   ]);
   revalidatePath("/invoices");
@@ -317,15 +291,7 @@ export async function assignParkingAction(_prevState: AssignParkingState, formDa
     return { status: "error", message: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
   }
   const data = parsed.data;
-  const [capacitySetting, rateSetting, currentCount] = await Promise.all([
-    prisma.appSetting.findUnique({ where: { key: "parkingSpaces" } }),
-    prisma.appSetting.findUnique({ where: { key: "defaultParkingRateCents" } }),
-    prisma.parkingAssignment.count({ where: { endDate: null } })
-  ]);
-  const capacity = Number(capacitySetting?.value ?? 0);
-  if (currentCount >= capacity) {
-    return { status: "error", message: "Aucune place de parking disponible." };
-  }
+  const rateSetting = await prisma.appSetting.findUnique({ where: { key: "defaultParkingRateCents" } });
 
   await prisma.parkingAssignment.create({
     data: {
@@ -376,23 +342,14 @@ export async function scheduleLoadingAction(_prevState: ScheduleLoadingState, fo
     return { status: "error", message: `Capacité de chargement atteinte pour ce créneau (max ${capacity} simultanés).` };
   }
 
-  await prisma.$transaction([
-    prisma.loadingAppointment.create({
-      data: {
-        clientName: data.clientName,
-        clientPhone: data.clientPhone,
-        startsAt: data.startsAt,
-        endsAt
-      }
-    }),
-    prisma.notification.create({
-      data: {
-        type: "LOADING_TODAY",
-        title: "Chargement programmé",
-        message: "Un nouveau créneau de chargement a été réservé."
-      }
-    })
-  ]);
+  await prisma.loadingAppointment.create({
+    data: {
+      clientName: data.clientName,
+      clientPhone: data.clientPhone || null,
+      startsAt: data.startsAt,
+      endsAt
+    }
+  });
   revalidatePath("/loading");
   return { status: "success" };
 }
@@ -425,7 +382,7 @@ export async function updateLoadingAppointmentAction(_prevState: UpdateLoadingSt
 
   await prisma.loadingAppointment.update({
     where: { id },
-    data: { clientName: data.clientName, clientPhone: data.clientPhone, startsAt: data.startsAt, endsAt }
+    data: { clientName: data.clientName, clientPhone: data.clientPhone || null, startsAt: data.startsAt, endsAt }
   });
   revalidatePath("/loading");
   return { status: "success" };

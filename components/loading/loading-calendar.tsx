@@ -39,7 +39,7 @@ export type CalendarAppointment = {
   endsAt: string;
   status: string;
   clientName: string;
-  clientPhone: string;
+  clientPhone: string | null;
 };
 
 type View = "week" | "month";
@@ -349,7 +349,7 @@ export function LoadingCalendar({ appointments }: { appointments: CalendarAppoin
                 <p className="text-muted-foreground">
                   {format(selected.start, "EEEE d MMMM yyyy", { locale: fr })} de {format(selected.start, "HH:mm")} à {format(selected.end, "HH:mm")}
                 </p>
-                <p className="text-muted-foreground">Téléphone : {selected.clientPhone}</p>
+                <p className="text-muted-foreground">Téléphone : {selected.clientPhone ?? "-"}</p>
                 <p className="text-muted-foreground">Statut : {labelStatus(selected.status)}</p>
                 <div className="flex gap-2 pt-1">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => setMode("edit")}>
@@ -390,7 +390,7 @@ function EditAppointmentForm({ appointment, onSuccess, onCancel }: { appointment
       onSubmit={(event) => {
         const data = new FormData(event.currentTarget);
         const phone = String(data.get("clientPhone") ?? "");
-        if (!isValidFrenchPhone(phone)) {
+        if (phone !== "" && !isValidFrenchPhone(phone)) {
           event.preventDefault();
           setPhoneError("Numéro de téléphone français invalide");
         } else {
@@ -403,9 +403,8 @@ function EditAppointmentForm({ appointment, onSuccess, onCancel }: { appointment
       <div className="space-y-1">
         <Input
           name="clientPhone"
-          defaultValue={appointment.clientPhone}
-          placeholder="06 12 34 56 78"
-          required
+          defaultValue={appointment.clientPhone ?? ""}
+          placeholder="06 12 34 56 78 (optionnel)"
           onChange={() => setPhoneError(null)}
         />
         {phoneError ? <p className="text-xs text-red-600">{phoneError}</p> : null}

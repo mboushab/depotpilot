@@ -66,7 +66,11 @@ export const parkingAssignmentSchema = z.object({
 
 export const loadingAppointmentSchema = z.object({
   clientName: z.string().min(2, "Nom du client requis").max(120),
-  clientPhone: z.string().refine(isValidFrenchPhone, "Numéro de téléphone français invalide"),
+  clientPhone: z
+    .string()
+    .refine((value) => value === "" || isValidFrenchPhone(value), "Numéro de téléphone français invalide")
+    .optional()
+    .or(z.literal("")),
   startsAt: z.coerce.date(),
   durationValue: z.coerce.number().int().min(1).max(10),
   durationUnit: z.enum(["HOURS", "DAYS"])

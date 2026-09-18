@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "@/components/forms/settings-form";
 import { BoxRatesForm } from "@/components/forms/box-rates-form";
+import { UnitForm } from "@/components/unit-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function SettingsPage() {
@@ -36,6 +37,12 @@ export default async function SettingsPage() {
           <BoxRatesForm units={units.map((unit) => ({ id: unit.id, code: unit.code, monthlyRateCents: unit.monthlyRateCents }))} />
         </CardContent>
       </Card>
+      {units.length < 30 ? (
+        <Card>
+          <CardHeader><CardTitle>Nouveau box</CardTitle></CardHeader>
+          <CardContent><UnitForm suggestedCode={`B-${String(units.length).padStart(2, "0")}`} /></CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader><CardTitle>Contraintes fixes</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">

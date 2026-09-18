@@ -15,7 +15,15 @@ const nav = [
   { href: "/settings", label: "Paramètres", icon: Settings }
 ];
 
-export function AdminShell({ children, userName }: { children: React.ReactNode; userName: string }) {
+export function AdminShell({
+  children,
+  userName,
+  unreadNotifications = 0
+}: {
+  children: React.ReactNode;
+  userName: string;
+  unreadNotifications?: number;
+}) {
   return (
     <div className="min-h-screen">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-white/94 px-4 py-5 lg:block">
@@ -35,6 +43,11 @@ export function AdminShell({ children, userName }: { children: React.ReactNode; 
             >
               <item.icon className="h-4 w-4" />
               {item.label}
+              {item.href === "/notifications" && unreadNotifications > 0 ? (
+                <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-xs font-semibold text-white">
+                  {unreadNotifications}
+                </span>
+              ) : null}
             </Link>
           ))}
         </nav>

@@ -7,10 +7,6 @@ export function deriveUnitStatus(rentals: RentalLike[]) {
     return "OCCUPIED" as const;
   }
 
-  if (rentals.some((rental) => rental.status === "RESERVED")) {
-    return "RESERVED" as const;
-  }
-
   return "AVAILABLE" as const;
 }
 

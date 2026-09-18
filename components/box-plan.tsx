@@ -48,9 +48,9 @@ function getBoxSignal(box: BoxCard, leadDays: number) {
     : false;
 
   if (box.status === "AVAILABLE") return { label: "Libre", className: "border-amber-400 bg-amber-400/15 text-amber-700" };
+  if (box.status === "RESERVED") return { label: "Réservé", className: "border-violet-500 bg-violet-500/15 text-violet-700" };
   if (unpaid) return { label: "Impayé", className: "border-rose-400 bg-rose-400/15 text-rose-700" };
   if (exitClose) return { label: "Sortie proche", className: "border-orange-500 bg-orange-500/15 text-orange-700" };
-  if (box.status === "RESERVED") return { label: "Réservé", className: "border-violet-500 bg-violet-500/15 text-violet-700" };
   return { label: "Occupé", className: "border-emerald-400 bg-emerald-400/15 text-emerald-700" };
 }
 
@@ -69,12 +69,22 @@ export function BoxPlan({
 }) {
   const [selectedId, setSelectedId] = useState(boxes[0]?.id);
   const selected = useMemo(() => boxes.find((box) => box.id === selectedId) ?? boxes[0], [boxes, selectedId]);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const stats = {
     free: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Libre").length,
     occupied: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Occupé").length,
     unpaid: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Impayé").length,
-    exitClose: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Sortie proche").length
+    exitClose: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Sortie proche").length,
+    reserved: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Réservé").length
   };
+  const filterOptions = [
+    { label: "Libre", count: stats.free },
+    { label: "Occupé", count: stats.occupied },
+    { label: "Réservé", count: stats.reserved },
+    { label: "Sortie proche", count: stats.exitClose },
+    { label: "Impayé", count: stats.unpaid }
+  ];
+  const visibleBoxes = statusFilter ? boxes.filter((box) => getBoxSignal(box, leadDays).label === statusFilter) : boxes;
 
   return (
     <div className="space-y-4">
@@ -88,12 +98,47 @@ export function BoxPlan({
         <div className="rounded-lg border bg-white p-4 shadow-panel">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Plan des box</h2>
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              {["Libre", "Occupé", "Sortie proche", "Impayé", "Réservé"].map((label) => <span key={label}>{label}</span>)}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter(null)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-white text-slate-700 hover:bg-muted"}`}
+                >
+                  Tous
+                </button>
+                {filterOptions.map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => setStatusFilter(statusFilter === option.label ? null : option.label)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === option.label ? "bg-slate-900 text-white" : "border bg-white text-slate-700 hover:bg-muted"}`}
+                  >
+                    {option.label} ({option.count})
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                {[
+                  { label: "Libre", dot: "bg-amber-400" },
+                  { label: "Occupé", dot: "bg-emerald-400" },
+                  { label: "Réservé", dot: "bg-violet-500" },
+                  { label: "Sortie proche", dot: "bg-orange-500" },
+                  { label: "Impayé", dot: "bg-rose-400" }
+                ].map(({ label, dot }) => (
+                  <span key={label} className="flex items-center gap-1.5">
+                    <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+                    {label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
+          {visibleBoxes.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Aucun box ne correspond à ce filtre.</p>
+          ) : (
           <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-            {boxes.map((box) => {
+            {visibleBoxes.map((box) => {
               const signal = getBoxSignal(box, leadDays);
               return (
                 <button
@@ -113,6 +158,7 @@ export function BoxPlan({
               );
             })}
           </div>
+          )}
         </div>
         {selected ? (
           <BoxDetails key={selected.id} box={selected} occupants={occupants} depositEnabled={depositEnabled} defaultDepositCents={defaultDepositCents} leadDays={leadDays} />
@@ -139,6 +185,8 @@ function BoxDetails({
   const balance = box.activeRental?.invoices.reduce((sum, invoice) => sum + invoice.totalCents - invoice.paidCents, 0) ?? 0;
   const [extending, setExtending] = useState(false);
   const [renting, setRenting] = useState(false);
+  const [confirmPaymentOpen, setConfirmPaymentOpen] = useState(false);
+  const paymentFormRef = useRef<HTMLFormElement>(null);
   const [paymentState, confirmPaymentFormAction, isConfirmingPayment] = useActionState(
     confirmBoxPaymentAction,
     { status: "idle" } as ConfirmBoxPaymentState
@@ -164,8 +212,17 @@ function BoxDetails({
         {box.activeRental ? <Row label="Type" value={box.activeRental.type === "ONE_TIME" ? "Ponctuel" : "Mensuel"} /> : null}
         <Row label="Entrée" value={box.activeRental ? format(new Date(box.activeRental.startDate), "dd MMM yyyy", { locale: fr }) : "-"} />
         <Row label="Sortie" value={box.activeRental?.endDate ? format(new Date(box.activeRental.endDate), "dd MMM yyyy", { locale: fr }) : "Non planifiée"} />
-        <Row label="Loyer" value={`${formatCurrency(box.activeRental?.monthlyRateCents ?? box.monthlyRateCents)} / mois`} />
-        {box.activeRental ? <Row label="Statut" value={balance > 0 ? "Impayé" : "Payé"} /> : null}
+        <Row
+          label={box.activeRental?.type === "ONE_TIME" ? "Prix" : "Loyer"}
+          value={
+            box.activeRental?.type === "ONE_TIME"
+              ? formatCurrency(box.activeRental.monthlyRateCents)
+              : `${formatCurrency(box.activeRental?.monthlyRateCents ?? box.monthlyRateCents)} / mois`
+          }
+        />
+        {box.activeRental ? (
+          <Row label="Statut" value={box.status === "RESERVED" ? "Réservé" : balance > 0 ? "Impayé" : "Payé"} />
+        ) : null}
         <Row label="Surface" value={`${box.surfaceM2} m2`} />
       </div>
       <div className="mt-6 grid gap-2">
@@ -184,9 +241,15 @@ function BoxDetails({
           <>
             <Button variant="outline" onClick={() => setExtending(true)}>Prolonger la sortie</Button>
             {balance > 0 ? (
-              <form action={confirmPaymentFormAction}>
+              <form ref={paymentFormRef} action={confirmPaymentFormAction}>
                 <input type="hidden" name="rentalId" value={box.activeRental.id} />
-                <Button type="submit" variant="outline" className="w-full" disabled={isConfirmingPayment}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={isConfirmingPayment}
+                  onClick={() => setConfirmPaymentOpen(true)}
+                >
                   {isConfirmingPayment ? "Confirmation…" : "Confirmer le paiement"}
                 </Button>
               </form>
@@ -204,6 +267,17 @@ function BoxDetails({
         occupants={occupants}
         depositEnabled={depositEnabled}
         defaultDepositCents={defaultDepositCents}
+      />
+      <ConfirmDialog
+        open={confirmPaymentOpen}
+        title="Confirmer le paiement de ce box ?"
+        description="Le solde impayé sera marqué comme réglé et une facture sera générée."
+        confirmLabel="Confirmer le paiement"
+        onConfirm={() => {
+          setConfirmPaymentOpen(false);
+          paymentFormRef.current?.requestSubmit();
+        }}
+        onCancel={() => setConfirmPaymentOpen(false)}
       />
     </aside>
   );

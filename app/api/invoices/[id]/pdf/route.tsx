@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
+import { labelStatus } from "@/lib/status-labels";
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, color: "#152231", fontFamily: "Helvetica" },
@@ -66,7 +67,7 @@ export async function GET(_: Request, { params }: Params) {
         <View style={styles.block}>
           <Text style={styles.muted}>Contrat</Text>
           <Text>Box: {invoice.rental?.unit.code ?? "-"}</Text>
-          <Text>Statut facture: {invoice.status}</Text>
+          <Text>Statut facture: {labelStatus(invoice.status)}</Text>
         </View>
         <View style={styles.table}>
           <View style={styles.row}>
@@ -77,7 +78,7 @@ export async function GET(_: Request, { params }: Params) {
           </View>
           {invoice.lines.map((line) => {
             const isRentalLine = line.description.startsWith("Location");
-            const unitLabel = isRentalLine ? (invoice.rental?.type === "ONE_TIME" ? "jour(s)" : "mois") : "";
+            const unitLabel = isRentalLine ? (invoice.rental?.type === "ONE_TIME" ? "période" : "mois") : "";
             return (
               <View style={styles.row} key={line.id}>
                 <Text style={styles.cell}>{line.description}</Text>

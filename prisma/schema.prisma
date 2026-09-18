@@ -1,5 +1,13 @@
 generator client {
   provider = "prisma-client-js"
+  // "native" keeps local `npm run dev` on the host Mac working. The two
+  // explicit musl targets cover the Docker image (Apple Silicon and Intel
+  // Macs building it locally). The actual fix for Prisma mis-detecting
+  // OpenSSL 3.x as 1.1.x on node:22-alpine is installing the `openssl`
+  // package in the Dockerfile (see builder/runner stages) — without it,
+  // Prisma's runtime auto-detect picks the wrong engine regardless of
+  // binaryTargets.
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -194,7 +202,7 @@ model LoadingBay {
 model LoadingAppointment {
   id          String        @id @default(cuid())
   clientName  String
-  clientPhone String
+  clientPhone String?
   startsAt    DateTime
   endsAt      DateTime
   status      LoadingStatus @default(SCHEDULED)
