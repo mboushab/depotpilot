@@ -42,3 +42,26 @@ select,
 textarea {
   font: inherit;
 }
+
+.react-datepicker {
+  font-family: inherit;
+  border-color: hsl(var(--border));
+  border-radius: 0.5rem;
+}
+
+.react-datepicker__header {
+  background-color: hsl(var(--muted));
+  border-bottom-color: hsl(var(--border));
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected,
+.react-datepicker__time-list-item--selected {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.react-datepicker__day:hover,
+.react-datepicker__time-list-item:hover {
+  background-color: hsl(var(--secondary)) !important;
+}

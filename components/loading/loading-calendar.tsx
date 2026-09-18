@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 
 export type CalendarAppointment = {
   id: string;
@@ -409,7 +410,7 @@ function EditAppointmentForm({ appointment, onSuccess, onCancel }: { appointment
         />
         {phoneError ? <p className="text-xs text-red-600">{phoneError}</p> : null}
       </div>
-      <Input type="datetime-local" name="startsAt" defaultValue={startValue} required />
+      <DateTimePicker name="startsAt" defaultValue={startValue} />
       <div className="flex gap-2">
         <select className="h-10 flex-1 rounded-md border bg-white px-2 text-sm" name="durationValue" defaultValue={duration.value}>
           {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => (

@@ -1,13 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import { scheduleLoadingAction, type ScheduleLoadingState } from "@/server/actions/forms";
 import { isValidFrenchPhone } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 
 const initialState: ScheduleLoadingState = { status: "idle" };
 
@@ -16,7 +16,7 @@ export function LoadingForm({ onSuccess }: { onSuccess?: () => void }) {
   const formRef = useRef<HTMLFormElement>(null);
   const lastSubmission = useRef<FormData | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
-  const minStart = format(new Date(), "yyyy-MM-dd'T'HH:mm");
+  const minStart = new Date();
 
   useEffect(() => {
     if (state.status === "success") {
@@ -61,7 +61,7 @@ export function LoadingForm({ onSuccess }: { onSuccess?: () => void }) {
       <Field label="Téléphone (optionnel)" error={phoneError}>
         <Input name="clientPhone" placeholder="06 12 34 56 78" onChange={() => setPhoneError(null)} />
       </Field>
-      <Field label="Début"><Input type="datetime-local" name="startsAt" min={minStart} required /></Field>
+      <Field label="Début"><DateTimePicker name="startsAt" minDate={minStart} /></Field>
       <Field label="Durée">
         <select className="h-10 w-full rounded-md border bg-white px-3 text-sm" name="durationValue" defaultValue={1}>
           {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => (
