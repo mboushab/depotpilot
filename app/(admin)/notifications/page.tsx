@@ -1,8 +1,9 @@
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
-import { markNotificationReadAction } from "@/server/actions/forms";
+import { markAllNotificationsReadAction, markNotificationReadAction } from "@/server/actions/forms";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function NotificationsPage() {
@@ -10,6 +11,7 @@ export default async function NotificationsPage() {
     orderBy: [{ readAt: { sort: "asc", nulls: "first" } }, { createdAt: "desc" }],
     take: 50
   });
+  const hasUnread = notifications.some((notification) => !notification.readAt);
   return (
     <div className="space-y-6">
       <div>
@@ -17,7 +19,14 @@ export default async function NotificationsPage() {
         <p className="text-sm text-muted-foreground">Alertes internes générées par les opérations du dépôt.</p>
       </div>
       <Card>
-        <CardHeader><CardTitle>Centre de notifications</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Centre de notifications</CardTitle>
+          {hasUnread ? (
+            <form action={markAllNotificationsReadAction}>
+              <Button type="submit" variant="outline" size="sm">Tout marquer comme lu</Button>
+            </form>
+          ) : null}
+        </CardHeader>
         <CardContent className="space-y-3">
           {notifications.map((notification) => (
             <div

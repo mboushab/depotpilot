@@ -405,6 +405,12 @@ export async function markNotificationReadAction(formData: FormData) {
   revalidatePath("/notifications");
 }
 
+export async function markAllNotificationsReadAction() {
+  await requireAdmin();
+  await prisma.notification.updateMany({ where: { readAt: null }, data: { readAt: new Date() } });
+  revalidatePath("/notifications");
+}
+
 export type UpdateSettingsState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
 
 export async function updateSettingsAction(_prevState: UpdateSettingsState, formData: FormData): Promise<UpdateSettingsState> {
