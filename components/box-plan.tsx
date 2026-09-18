@@ -183,6 +183,7 @@ function BoxDetails({
 }) {
   const signal = getBoxSignal(box, leadDays);
   const balance = box.activeRental?.invoices.reduce((sum, invoice) => sum + invoice.totalCents - invoice.paidCents, 0) ?? 0;
+  const paidTotal = box.activeRental?.invoices.reduce((sum, invoice) => sum + invoice.paidCents, 0) ?? 0;
   const [extending, setExtending] = useState(false);
   const [renting, setRenting] = useState(false);
   const [confirmPaymentOpen, setConfirmPaymentOpen] = useState(false);
@@ -222,6 +223,12 @@ function BoxDetails({
         />
         {box.activeRental ? (
           <Row label="Statut" value={box.status === "RESERVED" ? "Réservé" : balance > 0 ? "Impayé" : "Payé"} />
+        ) : null}
+        {box.activeRental && paidTotal > 0 && balance > 0 ? (
+          <>
+            <Row label="Montant payé" value={formatCurrency(paidTotal)} />
+            <Row label="Solde restant" value={formatCurrency(balance)} />
+          </>
         ) : null}
         <Row label="Surface" value={`${box.surfaceM2} m2`} />
       </div>
