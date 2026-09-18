@@ -9,6 +9,7 @@ import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 type Option = { id: string; label: string };
 
@@ -151,8 +152,8 @@ export function RentBoxForm({
         />
         <input type="hidden" name="monthlyRateCents" ref={priceCentsRef} defaultValue={monthlyRateCents} />
       </Field>
-      <Field label="Paiement">
-        <div className="flex h-10 items-center gap-4">
+      <Field label="Paiement" className="md:col-span-3">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <label className="flex items-center gap-2 text-sm">
             <input
               type="radio"
@@ -174,31 +175,42 @@ export function RentBoxForm({
             Payer une partie
           </label>
         </div>
+        {paymentMode === "PARTIAL" ? (
+          <div className="mt-3 max-w-xs space-y-2">
+            <Label>Montant payé (€)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0.01"
+              onChange={(event) => {
+                if (partialAmountCentsRef.current) {
+                  partialAmountCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
+                }
+              }}
+              required
+            />
+            <input type="hidden" name="partialAmountCents" ref={partialAmountCentsRef} />
+          </div>
+        ) : null}
       </Field>
-      {paymentMode === "PARTIAL" ? (
-        <Field label="Montant payé (€)">
-          <Input
-            type="number"
-            step="0.01"
-            min="0.01"
-            onChange={(event) => {
-              if (partialAmountCentsRef.current) {
-                partialAmountCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
-              }
-            }}
-            required
-          />
-          <input type="hidden" name="partialAmountCents" ref={partialAmountCentsRef} />
-        </Field>
-      ) : null}
       <div className="md:col-span-3"><Button disabled={isPending}>{isPending ? "Création…" : "Créer le contrat"}</Button></div>
     </form>
   );
 }
 
-function Field({ label, children, action }: { label: string; children: React.ReactNode; action?: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  action,
+  className
+}: {
+  label: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", className)}>
       <div className="flex items-center justify-between">
         <Label>{label}</Label>
         {action}
