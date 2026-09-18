@@ -188,6 +188,7 @@ function BoxDetails({
   const [renting, setRenting] = useState(false);
   const [confirmPaymentOpen, setConfirmPaymentOpen] = useState(false);
   const paymentFormRef = useRef<HTMLFormElement>(null);
+  const paymentAmountCentsRef = useRef<HTMLInputElement>(null);
   const [paymentState, confirmPaymentFormAction, isConfirmingPayment] = useActionState(
     confirmBoxPaymentAction,
     { status: "idle" } as ConfirmBoxPaymentState
@@ -236,12 +237,18 @@ function BoxDetails({
         {!box.activeRental ? (
           <Button onClick={() => setRenting(true)}>Louer ce box</Button>
         ) : paymentState.status === "success" ? (
-          <Button asChild variant="outline" className="w-full">
-            <a href={`/api/invoices/${paymentState.invoiceId}/pdf`} target="_blank" rel="noreferrer">
-              <Download className="h-4 w-4" />
-              Imprimer la facture
-            </a>
-          </Button>
+          balance <= 0 ? (
+            <Button asChild variant="outline" className="w-full">
+              <a href={`/api/invoices/${paymentState.invoiceId}/pdf`} target="_blank" rel="noreferrer">
+                <Download className="h-4 w-4" />
+                Imprimer la facture
+              </a>
+            </Button>
+          ) : (
+            <p className="text-center text-sm text-muted-foreground">
+              Paiement partiel enregistré. Solde restant : {formatCurrency(balance)}
+            </p>
+          )
         ) : extending ? (
           <ExtendExitForm rentalId={box.activeRental.id} currentEndDate={box.activeRental.endDate} onDone={() => setExtending(false)} />
         ) : (
@@ -250,6 +257,7 @@ function BoxDetails({
             {balance > 0 ? (
               <form ref={paymentFormRef} action={confirmPaymentFormAction}>
                 <input type="hidden" name="rentalId" value={box.activeRental.id} />
+                <input type="hidden" name="amountCents" ref={paymentAmountCentsRef} defaultValue={balance} />
                 <Button
                   type="button"
                   variant="outline"
@@ -275,17 +283,40 @@ function BoxDetails({
         depositEnabled={depositEnabled}
         defaultDepositCents={defaultDepositCents}
       />
-      <ConfirmDialog
-        open={confirmPaymentOpen}
-        title="Confirmer le paiement de ce box ?"
-        description="Le solde impayé sera marqué comme réglé et une facture sera générée."
-        confirmLabel="Confirmer le paiement"
-        onConfirm={() => {
-          setConfirmPaymentOpen(false);
-          paymentFormRef.current?.requestSubmit();
-        }}
-        onCancel={() => setConfirmPaymentOpen(false)}
-      />
+      {confirmPaymentOpen ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmPaymentOpen(false)}>
+          <div className="w-full max-w-sm rounded-lg border bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <h3 className="text-base font-semibold">Confirmer le paiement de ce box</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Solde restant : {formatCurrency(balance)}</p>
+            <div className="mt-4 space-y-2">
+              <Label>Montant encaissé (€)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={(balance / 100).toFixed(2)}
+                defaultValue={(balance / 100).toFixed(2)}
+                onChange={(event) => {
+                  if (paymentAmountCentsRef.current) {
+                    paymentAmountCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
+                  }
+                }}
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmPaymentOpen(false)}>Annuler</Button>
+              <Button
+                onClick={() => {
+                  setConfirmPaymentOpen(false);
+                  paymentFormRef.current?.requestSubmit();
+                }}
+              >
+                Confirmer
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
 }

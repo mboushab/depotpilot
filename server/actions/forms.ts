@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { addDays, addHours, addMonths, differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { calculateInvoiceTotals, computeDueDate, buildInvoiceNumber, deriveInvoiceStatus } from "@/lib/billing";
@@ -287,32 +288,50 @@ export async function confirmBoxPaymentAction(
     where: { id: rentalId },
     include: { invoices: true }
   });
-  const unpaidInvoices = rental.invoices.filter((invoice) => invoice.status !== "VOID" && invoice.paidCents < invoice.totalCents);
+  const unpaidInvoices = rental.invoices
+    .filter((invoice) => invoice.status !== "VOID" && invoice.paidCents < invoice.totalCents)
+    .sort((a, b) => a.issueDate.getTime() - b.issueDate.getTime());
   if (unpaidInvoices.length === 0) {
     return { status: "error", message: "Aucune facture impayée pour ce box." };
   }
 
+  const totalRemaining = unpaidInvoices.reduce((sum, invoice) => sum + (invoice.totalCents - invoice.paidCents), 0);
+  const amountCentsRaw = formData.get("amountCents");
+  const amountToApply = amountCentsRaw && String(amountCentsRaw).trim() !== "" ? Number(amountCentsRaw) : totalRemaining;
+  if (!Number.isFinite(amountToApply) || amountToApply <= 0) {
+    return { status: "error", message: "Montant invalide." };
+  }
+  if (amountToApply > totalRemaining) {
+    return { status: "error", message: "Le montant ne peut pas dépasser le solde restant." };
+  }
+
   const paidAt = new Date();
-  await prisma.$transaction(
-    unpaidInvoices.flatMap((invoice) => [
+  let remaining = amountToApply;
+  let lastInvoiceId = unpaidInvoices[unpaidInvoices.length - 1].id;
+  const operations: Prisma.PrismaPromise<unknown>[] = [];
+  for (const invoice of unpaidInvoices) {
+    if (remaining <= 0) break;
+    const dueOnThis = invoice.totalCents - invoice.paidCents;
+    const applyAmount = Math.min(dueOnThis, remaining);
+    const newPaidCents = invoice.paidCents + applyAmount;
+    operations.push(
       prisma.payment.create({
-        data: {
-          invoiceId: invoice.id,
-          amountCents: invoice.totalCents - invoice.paidCents,
-          method: "CASH",
-          paidAt
-        }
+        data: { invoiceId: invoice.id, amountCents: applyAmount, method: "CASH", paidAt }
       }),
       prisma.invoice.update({
         where: { id: invoice.id },
-        data: { paidCents: invoice.totalCents, status: "PAID" }
+        data: { paidCents: newPaidCents, status: deriveInvoiceStatus(invoice.totalCents, newPaidCents, invoice.dueDate) }
       })
-    ])
-  );
+    );
+    lastInvoiceId = invoice.id;
+    remaining -= applyAmount;
+  }
+
+  await prisma.$transaction(operations);
   revalidatePath("/boxes");
   revalidatePath("/invoices");
   revalidatePath("/clients");
-  return { status: "success", invoiceId: unpaidInvoices[unpaidInvoices.length - 1].id };
+  return { status: "success", invoiceId: lastInvoiceId };
 }
 
 export async function createPaymentAction(formData: FormData) {
