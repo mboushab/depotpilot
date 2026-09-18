@@ -157,7 +157,13 @@ export function BoxPlan({
                     {signal.label === "Sortie proche" ? <LogOut className="h-4 w-4" /> : null}
                   </div>
                   <p className="mt-5 text-sm font-medium">{box.activeRental?.occupantName ?? signal.label}</p>
-                  <p className="mt-2 text-xs opacity-80">{signal.label === "Libre" ? `À partir de ${formatCurrency(box.monthlyRateCents)}` : signal.label}</p>
+                  <p className="mt-2 text-xs opacity-80">
+                    {signal.label === "Libre"
+                      ? `À partir de ${formatCurrency(box.monthlyRateCents)}`
+                      : signal.label === "Réservé"
+                        ? `Payé : ${formatCurrency(box.activeRental?.invoices.reduce((sum, invoice) => sum + invoice.paidCents, 0) ?? 0)}`
+                        : signal.label}
+                  </p>
                 </button>
               );
             })}
