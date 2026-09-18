@@ -263,7 +263,9 @@ function BoxDetails({
           <ExtendExitForm rentalId={box.activeRental.id} currentEndDate={box.activeRental.endDate} onDone={() => setExtending(false)} />
         ) : (
           <>
-            <Button variant="outline" onClick={() => setExtending(true)}>Prolonger la sortie</Button>
+            {box.activeRental.type === "ONE_TIME" ? (
+              <Button variant="outline" onClick={() => setExtending(true)}>Prolonger la sortie</Button>
+            ) : null}
             {balance > 0 ? (
               <form ref={paymentFormRef} action={confirmPaymentFormAction}>
                 <input type="hidden" name="rentalId" value={box.activeRental.id} />
