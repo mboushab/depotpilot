@@ -1,7 +1,11 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+# On a slow/unstable connection, npm's default retry behavior isn't
+# forgiving enough and a single dropped connection fails the whole
+# install. More retries and longer timeouts make this resilient to that
+# without changing anything on a normal connection.
+RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
 
 FROM node:22-alpine AS builder
 WORKDIR /app
