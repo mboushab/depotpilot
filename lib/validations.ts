@@ -26,11 +26,8 @@ export const occupantSchema = z.object({
 
 export const unitSchema = z.object({
   code: z.string().min(2).max(24),
-  floor: z.coerce.number().int().min(-3).max(20),
   surfaceM2: z.coerce.number().positive().max(500),
-  volumeM3: z.coerce.number().positive().max(2000),
   monthlyRateCents: z.coerce.number().int().min(0).max(500000),
-  climateControlled: z.coerce.boolean().default(false),
   accessNote: z.string().max(240).optional().or(z.literal(""))
 });
 

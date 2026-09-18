@@ -91,10 +91,7 @@ export type CreateUnitState = { status: "idle" } | { status: "success" } | { sta
 
 export async function createUnitAction(_prevState: CreateUnitState, formData: FormData): Promise<CreateUnitState> {
   await requireAdmin();
-  const parsed = unitSchema.safeParse({
-    ...Object.fromEntries(formData),
-    climateControlled: formData.get("climateControlled") === "on"
-  });
+  const parsed = unitSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
   }
@@ -109,6 +106,9 @@ export async function createUnitAction(_prevState: CreateUnitState, formData: Fo
   await prisma.storageUnit.create({
     data: {
       ...data,
+      floor: 0,
+      volumeM3: 0,
+      climateControlled: false,
       position: count + 1,
       accessNote: data.accessNote || null
     }
