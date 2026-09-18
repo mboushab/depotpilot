@@ -206,7 +206,7 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
 
   revalidatePath("/boxes");
   revalidatePath("/invoices");
-  return { status: "success", invoiceId, paid: paidCents > 0 };
+  return { status: "success", invoiceId, paid: paidCents >= totals.totalCents };
 }
 
 export type ReleaseRentalState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
