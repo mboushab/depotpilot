@@ -19,7 +19,8 @@ const styles = StyleSheet.create({
   cellRight: { padding: 8, width: 110, textAlign: "right" },
   totalRow: { flexDirection: "row", justifyContent: "flex-end", gap: 24, marginTop: 8 },
   totalLabel: { width: 120, textAlign: "right", color: "#64748b" },
-  totalValue: { width: 100, textAlign: "right", fontWeight: 700 }
+  totalValue: { width: 100, textAlign: "right", fontWeight: 700 },
+  partialNotice: { marginTop: 12, textAlign: "right", color: "#b45309", fontWeight: 700 }
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -93,6 +94,21 @@ export async function GET(_: Request, { params }: Params) {
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>{formatCurrency(invoice.totalCents)}</Text>
         </View>
+        {invoice.paidCents > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Payé</Text>
+            <Text style={styles.totalValue}>{formatCurrency(invoice.paidCents)}</Text>
+          </View>
+        ) : null}
+        {invoice.paidCents > 0 && invoice.paidCents < invoice.totalCents ? (
+          <>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Solde restant</Text>
+              <Text style={styles.totalValue}>{formatCurrency(invoice.totalCents - invoice.paidCents)}</Text>
+            </View>
+            <Text style={styles.partialNotice}>Paiement partiel</Text>
+          </>
+        ) : null}
       </Page>
     </Document>
   );

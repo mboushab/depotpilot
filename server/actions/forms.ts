@@ -119,7 +119,15 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
     { quantity: 1, unitCents: data.monthlyRateCents }
   ];
   const totals = calculateInvoiceTotals(invoiceLines);
-  const paidCents = data.paidNow ? totals.totalCents : 0;
+  let paidCents = 0;
+  if (data.paymentMode === "FULL") {
+    paidCents = totals.totalCents;
+  } else if (data.paymentMode === "PARTIAL") {
+    if (!data.partialAmountCents || data.partialAmountCents >= totals.totalCents) {
+      return { status: "error", message: "Le montant partiel doit être supérieur à 0 et inférieur au prix total." };
+    }
+    paidCents = data.partialAmountCents;
+  }
   const invoiceStatus = deriveInvoiceStatus(totals.totalCents, paidCents, computeDueDate(issueDate), issueDate);
   const endDate = data.type === "ONE_TIME" && data.durationDays ? addDays(data.startDate, data.durationDays) : null;
   const isFutureStart = differenceInCalendarDays(data.startDate, new Date()) > 0;
@@ -182,11 +190,11 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
       }
     });
 
-    if (data.paidNow) {
+    if (paidCents > 0) {
       await tx.payment.create({
         data: {
           invoiceId: invoice.id,
-          amountCents: totals.totalCents,
+          amountCents: paidCents,
           method: "CASH",
           paidAt: issueDate
         }
@@ -198,7 +206,7 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
 
   revalidatePath("/boxes");
   revalidatePath("/invoices");
-  return { status: "success", invoiceId, paid: data.paidNow };
+  return { status: "success", invoiceId, paid: paidCents > 0 };
 }
 
 export type ReleaseRentalState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };

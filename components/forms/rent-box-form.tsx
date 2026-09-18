@@ -32,7 +32,9 @@ export function RentBoxForm({
   const [state, formAction, isPending] = useActionState(createRentalAction, { status: "idle" } as CreateRentalState);
   const today = format(new Date(), "yyyy-MM-dd");
   const [rentalType, setRentalType] = useState<"MONTHLY" | "ONE_TIME">("MONTHLY");
+  const [paymentMode, setPaymentMode] = useState<"NONE" | "FULL" | "PARTIAL">("NONE");
   const priceCentsRef = useRef<HTMLInputElement>(null);
+  const partialAmountCentsRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const pendingSelectId = useRef<string | null>(null);
   const [clientOptions, setClientOptions] = useState(occupants);
@@ -149,10 +151,46 @@ export function RentBoxForm({
         />
         <input type="hidden" name="monthlyRateCents" ref={priceCentsRef} defaultValue={monthlyRateCents} />
       </Field>
-      <div className="flex items-center gap-3 rounded-md border bg-white px-3">
-        <input id="paidNow" type="checkbox" name="paidNow" className="h-4 w-4" />
-        <Label htmlFor="paidNow">Le client paie maintenant</Label>
-      </div>
+      <Field label="Paiement">
+        <div className="flex h-10 items-center gap-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="paymentMode"
+              value="FULL"
+              checked={paymentMode === "FULL"}
+              onChange={() => setPaymentMode("FULL")}
+            />
+            Total payé maintenant
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="paymentMode"
+              value="PARTIAL"
+              checked={paymentMode === "PARTIAL"}
+              onChange={() => setPaymentMode("PARTIAL")}
+            />
+            Payer une partie
+          </label>
+        </div>
+      </Field>
+      {paymentMode === "PARTIAL" ? (
+        <Field label="Montant payé (€)">
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            onChange={(event) => {
+              if (partialAmountCentsRef.current) {
+                partialAmountCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
+              }
+            }}
+            required
+          />
+          <input type="hidden" name="partialAmountCents" ref={partialAmountCentsRef} />
+        </Field>
+      ) : null}
       <div className="md:col-span-3"><Button disabled={isPending}>{isPending ? "Création…" : "Créer le contrat"}</Button></div>
     </form>
   );

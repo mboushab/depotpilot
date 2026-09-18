@@ -44,11 +44,16 @@ export const rentalSchema = z
     billingDay: z.coerce.number().int().min(1).max(28),
     depositCents: z.coerce.number().int().min(0).max(500000),
     monthlyRateCents: z.coerce.number().int().min(0).max(500000),
-    paidNow: z.coerce.boolean().default(false)
+    paymentMode: z.enum(["FULL", "PARTIAL"]).optional(),
+    partialAmountCents: z.coerce.number().int().positive().optional()
   })
   .refine((data) => data.type !== "ONE_TIME" || data.durationDays !== undefined, {
     message: "Nombre de jours requis pour une location ponctuelle",
     path: ["durationDays"]
+  })
+  .refine((data) => data.paymentMode !== "PARTIAL" || data.partialAmountCents !== undefined, {
+    message: "Montant partiel requis",
+    path: ["partialAmountCents"]
   });
 
 export const paymentSchema = z.object({
