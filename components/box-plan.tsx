@@ -76,19 +76,29 @@ export function BoxPlan({
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const stats = {
     free: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Libre").length,
+    // "Loués/Payés" (top metric) is deliberately the narrow, fully-settled
+    // subset — no unpaid balance, no exit looming.
     occupied: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Occupé").length,
+    // The "Occupé" filter pill is broader: any box actually occupied,
+    // including ones that are also unpaid or about to leave — those are
+    // still occupied boxes, just needing attention too.
+    occupiedTotal: boxes.filter((box) => box.status === "OCCUPIED").length,
     unpaid: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Impayé").length,
     exitClose: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Sortie proche").length,
     reserved: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Réservé").length
   };
   const filterOptions = [
     { label: "Libre", count: stats.free },
-    { label: "Occupé", count: stats.occupied },
+    { label: "Occupé", count: stats.occupiedTotal },
     { label: "Réservé", count: stats.reserved },
     { label: "Sortie proche", count: stats.exitClose },
     { label: "Impayé", count: stats.unpaid }
   ];
-  const visibleBoxes = statusFilter ? boxes.filter((box) => getBoxSignal(box, leadDays).label === statusFilter) : boxes;
+  const visibleBoxes = statusFilter
+    ? statusFilter === "Occupé"
+      ? boxes.filter((box) => box.status === "OCCUPIED")
+      : boxes.filter((box) => getBoxSignal(box, leadDays).label === statusFilter)
+    : boxes;
 
   return (
     <div className="space-y-4">
