@@ -54,18 +54,30 @@ export async function deleteOccupantAction(_prevState: DeleteOccupantState, form
   const id = String(formData.get("id") ?? "");
   const occupant = await prisma.occupant.findUniqueOrThrow({
     where: { id },
-    include: { rentals: true, invoices: true, parkingAssignments: true }
+    include: { rentals: true, parkingAssignments: true }
   });
 
   if (occupant.rentals.some((rental) => rental.status === "ACTIVE")) {
     return { status: "error", message: "Impossible de supprimer un client qui occupe un box." };
   }
-  if (occupant.rentals.length > 0 || occupant.invoices.length > 0 || occupant.parkingAssignments.length > 0) {
-    return { status: "error", message: "Impossible de supprimer ce client : il a un historique de location, facturation ou stationnement." };
+  if (occupant.parkingAssignments.some((assignment) => !assignment.endDate)) {
+    return { status: "error", message: "Impossible de supprimer un client qui occupe une place de parking." };
   }
 
-  await prisma.occupant.delete({ where: { id } });
+  // No active occupation left — safe to remove the client along with their
+  // history (past rentals, invoices, payments, parking). Invoice deletion
+  // cascades its lines and payments; occupant is deleted last since
+  // Rental/Invoice/ParkingAssignment reference it with onDelete: Restrict.
+  await prisma.$transaction([
+    prisma.invoice.deleteMany({ where: { occupantId: id } }),
+    prisma.rental.deleteMany({ where: { occupantId: id } }),
+    prisma.parkingAssignment.deleteMany({ where: { occupantId: id } }),
+    prisma.occupant.delete({ where: { id } })
+  ]);
   revalidatePath("/clients");
+  revalidatePath("/boxes");
+  revalidatePath("/parking");
+  revalidatePath("/invoices");
   return { status: "success" };
 }
 

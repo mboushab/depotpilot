@@ -39,7 +39,7 @@ export function DeleteClientButton({ id, name }: { id: string; name: string }) {
       <ConfirmDialog
         open={confirmOpen}
         title={`Supprimer ${name} ?`}
-        description="Cette action est définitive et ne peut pas être annulée."
+        description="Son historique (locations, factures, paiements, stationnements) sera aussi supprimé définitivement. Cette action ne peut pas être annulée."
         confirmLabel="Supprimer"
         onConfirm={() => {
           setConfirmOpen(false);
