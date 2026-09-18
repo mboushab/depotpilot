@@ -52,16 +52,22 @@ export type DeleteOccupantState = { status: "idle" } | { status: "success" } | {
 export async function deleteOccupantAction(_prevState: DeleteOccupantState, formData: FormData): Promise<DeleteOccupantState> {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  const occupant = await prisma.occupant.findUniqueOrThrow({
+  const occupant = await prisma.occupant.findUnique({
     where: { id },
-    include: { rentals: true, parkingAssignments: true }
+    include: { rentals: true, parkingAssignments: true, invoices: true }
   });
+  if (!occupant) {
+    return { status: "error", message: "Client introuvable (déjà supprimé ?)." };
+  }
 
   if (occupant.rentals.some((rental) => rental.status === "ACTIVE")) {
     return { status: "error", message: "Impossible de supprimer un client qui occupe un box." };
   }
   if (occupant.parkingAssignments.some((assignment) => !assignment.endDate)) {
     return { status: "error", message: "Impossible de supprimer un client qui occupe une place de parking." };
+  }
+  if (occupant.invoices.some((invoice) => invoice.status !== "VOID" && invoice.paidCents < invoice.totalCents)) {
+    return { status: "error", message: "Impossible de supprimer un client qui a un solde impayé." };
   }
 
   // No active occupation left — safe to remove the client along with their
@@ -124,8 +130,17 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
 
   const depositEnabled = (await prisma.appSetting.findUnique({ where: { key: "depositEnabled" } }))?.value === "true";
   const depositCents = depositEnabled ? data.depositCents : 0;
-  const invoiceCount = await prisma.invoice.count();
   const issueDate = new Date();
+  // Based on the highest sequence actually in use for this year, not a row
+  // count — deleting an invoice (e.g. via client deletion) leaves a gap that
+  // a count-based "+1" can collide with an invoice number that still exists.
+  const yearPrefix = `FAC-${issueDate.getFullYear()}-`;
+  const [{ max }] = await prisma.$queryRaw<{ max: number | null }[]>`
+    SELECT MAX(CAST(RIGHT("invoiceNumber", 5) AS INTEGER)) as max
+    FROM "Invoice"
+    WHERE "invoiceNumber" LIKE ${yearPrefix + "%"}
+  `;
+  const nextInvoiceSeq = (max ?? 0) + 1;
   const invoiceLines = [
     ...(depositCents > 0 ? [{ quantity: 1, unitCents: depositCents }] : []),
     { quantity: 1, unitCents: data.monthlyRateCents }
@@ -167,7 +182,7 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
 
     const invoice = await tx.invoice.create({
       data: {
-        invoiceNumber: buildInvoiceNumber(issueDate, invoiceCount + 1),
+        invoiceNumber: buildInvoiceNumber(issueDate, nextInvoiceSeq),
         occupantId: data.occupantId,
         rentalId: rental.id,
         status: invoiceStatus,
