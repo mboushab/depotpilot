@@ -156,7 +156,7 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
     }
     paidCents = data.partialAmountCents;
   }
-  const invoiceStatus = deriveInvoiceStatus(totals.totalCents, paidCents, computeDueDate(issueDate), issueDate);
+  const invoiceStatus = deriveInvoiceStatus(totals.totalCents, paidCents, computeDueDate(issueDate, data.type), issueDate);
   const endDate = data.type === "ONE_TIME" && data.durationDays ? addDays(data.startDate, data.durationDays) : null;
   const isFutureStart = differenceInCalendarDays(data.startDate, new Date()) > 0;
 
@@ -188,7 +188,7 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
         rentalId: rental.id,
         status: invoiceStatus,
         issueDate,
-        dueDate: computeDueDate(issueDate),
+        dueDate: computeDueDate(issueDate, data.type),
         ...totals,
         paidCents,
         notes: endDate
@@ -278,31 +278,29 @@ export type ConfirmBoxPaymentState =
   | { status: "success"; invoiceId: string }
   | { status: "error"; message: string };
 
-export async function confirmBoxPaymentAction(
-  _prevState: ConfirmBoxPaymentState,
-  formData: FormData
-): Promise<ConfirmBoxPaymentState> {
-  await requireAdmin();
-  const rentalId = String(formData.get("rentalId") ?? "");
-  const rental = await prisma.rental.findUniqueOrThrow({
-    where: { id: rentalId },
-    include: { invoices: true }
-  });
-  const unpaidInvoices = rental.invoices
+type PayableInvoice = { id: string; totalCents: number; paidCents: number; dueDate: Date; issueDate: Date; status: string };
+
+// Shared by the box and client "Confirmer le paiement" actions: applies an
+// amount across a set of unpaid invoices, oldest first, and returns the
+// resulting error (if the amount is invalid) or the transaction operations.
+async function applyPaymentAcrossInvoices(
+  invoices: PayableInvoice[],
+  requestedAmountCents: number | null
+): Promise<{ error: string } | { operations: Prisma.PrismaPromise<unknown>[]; lastInvoiceId: string }> {
+  const unpaidInvoices = invoices
     .filter((invoice) => invoice.status !== "VOID" && invoice.paidCents < invoice.totalCents)
     .sort((a, b) => a.issueDate.getTime() - b.issueDate.getTime());
   if (unpaidInvoices.length === 0) {
-    return { status: "error", message: "Aucune facture impayée pour ce box." };
+    return { error: "Aucune facture impayée." } as const;
   }
 
   const totalRemaining = unpaidInvoices.reduce((sum, invoice) => sum + (invoice.totalCents - invoice.paidCents), 0);
-  const amountCentsRaw = formData.get("amountCents");
-  const amountToApply = amountCentsRaw && String(amountCentsRaw).trim() !== "" ? Number(amountCentsRaw) : totalRemaining;
+  const amountToApply = requestedAmountCents ?? totalRemaining;
   if (!Number.isFinite(amountToApply) || amountToApply <= 0) {
-    return { status: "error", message: "Montant invalide." };
+    return { error: "Montant invalide." } as const;
   }
   if (amountToApply > totalRemaining) {
-    return { status: "error", message: "Le montant ne peut pas dépasser le solde restant." };
+    return { error: "Le montant ne peut pas dépasser le solde restant." } as const;
   }
 
   const paidAt = new Date();
@@ -327,11 +325,60 @@ export async function confirmBoxPaymentAction(
     remaining -= applyAmount;
   }
 
-  await prisma.$transaction(operations);
+  return { operations, lastInvoiceId } as const;
+}
+
+function parseAmountCents(formData: FormData) {
+  const raw = formData.get("amountCents");
+  return raw && String(raw).trim() !== "" ? Number(raw) : null;
+}
+
+export async function confirmBoxPaymentAction(
+  _prevState: ConfirmBoxPaymentState,
+  formData: FormData
+): Promise<ConfirmBoxPaymentState> {
+  await requireAdmin();
+  const rentalId = String(formData.get("rentalId") ?? "");
+  const rental = await prisma.rental.findUniqueOrThrow({
+    where: { id: rentalId },
+    include: { invoices: true }
+  });
+
+  const result = await applyPaymentAcrossInvoices(rental.invoices, parseAmountCents(formData));
+  if ("error" in result) {
+    return { status: "error", message: result.error };
+  }
+
+  await prisma.$transaction(result.operations);
   revalidatePath("/boxes");
   revalidatePath("/invoices");
   revalidatePath("/clients");
-  return { status: "success", invoiceId: lastInvoiceId };
+  return { status: "success", invoiceId: result.lastInvoiceId };
+}
+
+export type ConfirmClientPaymentState =
+  | { status: "idle" }
+  | { status: "success" }
+  | { status: "error"; message: string };
+
+export async function confirmClientPaymentAction(
+  _prevState: ConfirmClientPaymentState,
+  formData: FormData
+): Promise<ConfirmClientPaymentState> {
+  await requireAdmin();
+  const occupantId = String(formData.get("occupantId") ?? "");
+  const invoices = await prisma.invoice.findMany({ where: { occupantId } });
+
+  const result = await applyPaymentAcrossInvoices(invoices, parseAmountCents(formData));
+  if ("error" in result) {
+    return { status: "error", message: result.error };
+  }
+
+  await prisma.$transaction(result.operations);
+  revalidatePath("/boxes");
+  revalidatePath("/invoices");
+  revalidatePath("/clients");
+  return { status: "success" };
 }
 
 export async function createPaymentAction(formData: FormData) {

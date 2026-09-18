@@ -228,7 +228,7 @@ function BoxDetails({
         {box.activeRental && paidTotal > 0 && balance > 0 ? (
           <>
             <Row label="Montant payé" value={formatCurrency(paidTotal)} />
-            <Row label="Solde restant" value={formatCurrency(balance)} />
+            <Row label="Solde restant" value={formatCurrency(balance)} danger />
           </>
         ) : null}
         <Row label="Surface" value={`${box.surfaceM2} m2`} />
@@ -397,6 +397,11 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: "
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return <div className="flex justify-between gap-4 border-b pb-2"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>;
+function Row({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <div className="flex justify-between gap-4 border-b pb-2">
+      <span className={danger ? "text-red-600" : "text-muted-foreground"}>{label}</span>
+      <span className={`text-right font-medium ${danger ? "text-red-600" : ""}`}>{value}</span>
+    </div>
+  );
 }

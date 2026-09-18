@@ -14,8 +14,9 @@ export function buildInvoiceNumber(date: Date, sequence: number) {
   return `FAC-${year}-${String(sequence).padStart(5, "0")}`;
 }
 
-export function computeDueDate(issueDate: Date) {
-  return endOfDay(addDays(issueDate, 14));
+export function computeDueDate(issueDate: Date, rentalType: "MONTHLY" | "ONE_TIME" = "MONTHLY") {
+  const days = rentalType === "MONTHLY" ? 30 : 14;
+  return endOfDay(addDays(issueDate, days));
 }
 
 export function deriveInvoiceStatus(totalCents: number, paidCents: number, dueDate: Date, now = new Date()) {

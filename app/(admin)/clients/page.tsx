@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { AddClientDialog } from "@/components/clients/add-client-dialog";
 import { DeleteClientButton } from "@/components/clients/delete-client-button";
+import { ConfirmClientPaymentButton } from "@/components/clients/confirm-client-payment-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -94,7 +95,16 @@ export default async function ClientsPage({
                       {unpaidBalance > 0 ? formatCurrency(unpaidBalance) : "À jour"}
                     </Td>
                     <Td className="text-right">
-                      <DeleteClientButton id={client.id} name={`${client.firstName} ${client.lastName}`} />
+                      <div className="flex justify-end gap-2">
+                        {unpaidBalance > 0 ? (
+                          <ConfirmClientPaymentButton
+                            occupantId={client.id}
+                            name={`${client.firstName} ${client.lastName}`}
+                            balanceCents={unpaidBalance}
+                          />
+                        ) : null}
+                        <DeleteClientButton id={client.id} name={`${client.firstName} ${client.lastName}`} />
+                      </div>
                     </Td>
                   </tr>
                 );
