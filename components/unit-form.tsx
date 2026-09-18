@@ -1,21 +1,35 @@
 "use client";
 
+import { useEffect, useRef, useActionState } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createUnitAction } from "@/server/actions/forms";
+import { createUnitAction, type CreateUnitState } from "@/server/actions/forms";
 import { unitSchema, type UnitInput } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function UnitForm({ suggestedCode }: { suggestedCode?: string }) {
+export function UnitForm({ suggestedCode, onSuccess }: { suggestedCode?: string; onSuccess?: () => void }) {
+  const [state, formAction, isPending] = useActionState(createUnitAction, { status: "idle" } as CreateUnitState);
+  const formRef = useRef<HTMLFormElement>(null);
   const form = useForm<UnitInput>({
     resolver: zodResolver(unitSchema),
     defaultValues: { floor: 0, climateControlled: false }
   });
 
+  useEffect(() => {
+    if (state.status === "success") {
+      toast.success("Box créé.");
+      formRef.current?.reset();
+      onSuccess?.();
+    } else if (state.status === "error") {
+      toast.error(state.message);
+    }
+  }, [state, onSuccess]);
+
   return (
-    <form action={createUnitAction} className="grid gap-4 md:grid-cols-3">
+    <form ref={formRef} action={formAction} className="grid gap-4 md:grid-cols-3">
       <Field label="Code"><Input placeholder="B-30" defaultValue={suggestedCode} {...form.register("code")} /></Field>
       <Field label="Étage"><Input type="number" {...form.register("floor")} /></Field>
       <Field label="Tarif mensuel (€)">
@@ -34,7 +48,7 @@ export function UnitForm({ suggestedCode }: { suggestedCode?: string }) {
         <Label htmlFor="climateControlled">Climatisée</Label>
       </div>
       <div className="md:col-span-3">
-        <Button>Créer le box</Button>
+        <Button disabled={isPending}>{isPending ? "Création…" : "Créer le box"}</Button>
       </div>
     </form>
   );

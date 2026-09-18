@@ -27,7 +27,7 @@ export default async function BoxesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Box de stockage</h1>
-        <p className="text-sm text-muted-foreground">Le dépôt contient exactement 30 box. Ajout bloqué une fois la capacité atteinte.</p>
+        <p className="text-sm text-muted-foreground">Le dépôt contient {boxes.length} box. Ajoutez-en depuis Paramètres → Tarifs des box.</p>
       </div>
       <BoxPlan
         boxes={boxes.map((box) => {

@@ -17,7 +17,6 @@ import {
   unitSchema
 } from "@/lib/validations";
 import { requireAdmin } from "@/lib/auth";
-import { canCreateBox } from "@/lib/storage-rules";
 
 export type CreateOccupantState =
   | { status: "idle" }
@@ -88,18 +87,25 @@ export async function deleteOccupantAction(_prevState: DeleteOccupantState, form
   return { status: "success" };
 }
 
-export async function createUnitAction(formData: FormData) {
-  await requireAdmin();
-  const count = await prisma.storageUnit.count();
-  if (!canCreateBox(count)) {
-    throw new Error("Le dépôt contient exactement 30 box. Impossible d'en créer davantage.");
-  }
+export type CreateUnitState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
 
-  const data = unitSchema.parse({
+export async function createUnitAction(_prevState: CreateUnitState, formData: FormData): Promise<CreateUnitState> {
+  await requireAdmin();
+  const parsed = unitSchema.safeParse({
     ...Object.fromEntries(formData),
     climateControlled: formData.get("climateControlled") === "on"
   });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
+  }
+  const data = parsed.data;
 
+  const existing = await prisma.storageUnit.findUnique({ where: { code: data.code } });
+  if (existing) {
+    return { status: "error", message: "Ce code de box existe déjà." };
+  }
+
+  const count = await prisma.storageUnit.count();
   await prisma.storageUnit.create({
     data: {
       ...data,
@@ -109,7 +115,7 @@ export async function createUnitAction(formData: FormData) {
   });
   revalidatePath("/boxes");
   revalidatePath("/settings");
-  redirect("/settings");
+  return { status: "success" };
 }
 
 export type CreateRentalState =
@@ -331,6 +337,54 @@ async function applyPaymentAcrossInvoices(
 function parseAmountCents(formData: FormData) {
   const raw = formData.get("amountCents");
   return raw && String(raw).trim() !== "" ? Number(raw) : null;
+}
+
+export type UpdateRentalRateState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
+
+export async function updateRentalRateAction(
+  _prevState: UpdateRentalRateState,
+  formData: FormData
+): Promise<UpdateRentalRateState> {
+  await requireAdmin();
+  const rentalId = String(formData.get("rentalId") ?? "");
+  const newRateCents = Number(formData.get("monthlyRateCents"));
+  if (!Number.isFinite(newRateCents) || newRateCents <= 0) {
+    return { status: "error", message: "Prix invalide." };
+  }
+
+  const rental = await prisma.rental.findUniqueOrThrow({
+    where: { id: rentalId },
+    include: { invoices: { include: { lines: true } } }
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.rental.update({ where: { id: rentalId }, data: { monthlyRateCents: newRateCents } });
+    for (const invoice of rental.invoices) {
+      const rentalLine = invoice.lines.find((line) => line.description.startsWith("Location"));
+      if (!rentalLine) continue;
+      await tx.invoiceLine.update({
+        where: { id: rentalLine.id },
+        data: { unitCents: newRateCents, totalCents: newRateCents }
+      });
+      const otherLinesTotal = invoice.lines
+        .filter((line) => line.id !== rentalLine.id)
+        .reduce((sum, line) => sum + line.totalCents, 0);
+      const newTotalCents = otherLinesTotal + newRateCents;
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          subtotalCents: newTotalCents,
+          totalCents: newTotalCents,
+          status: deriveInvoiceStatus(newTotalCents, invoice.paidCents, invoice.dueDate)
+        }
+      });
+    }
+  });
+
+  revalidatePath("/boxes");
+  revalidatePath("/invoices");
+  revalidatePath("/clients");
+  return { status: "success" };
 }
 
 export async function confirmBoxPaymentAction(

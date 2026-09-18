@@ -18,14 +18,6 @@ export function occupancyRate(totalUnits: number, occupiedUnits: number) {
   return occupiedUnits / totalUnits;
 }
 
-export function validateBoxCapacity(count: number) {
-  return count === 30;
-}
-
-export function canCreateBox(currentCount: number) {
-  return currentCount < 30;
-}
-
 export function validateLoadingBayCount(count: number) {
   return count === 2;
 }

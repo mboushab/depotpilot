@@ -90,9 +90,9 @@ export default async function ClientsPage({
                     <Td>{client.city ?? "–"}</Td>
                     <Td>{client._count.rentals}</Td>
                     <Td>{client._count.parkingAssignments}</Td>
-                    <Td><Badge>{unpaidBalance > 0 ? "PAYMENT_OVERDUE" : "PAID"}</Badge></Td>
+                    <Td>{client.invoices.length > 0 ? <Badge>{unpaidBalance > 0 ? "PAYMENT_OVERDUE" : "PAID"}</Badge> : null}</Td>
                     <Td className={`text-right font-medium ${unpaidBalance > 0 ? "text-red-600" : ""}`}>
-                      {unpaidBalance > 0 ? formatCurrency(unpaidBalance) : "À jour"}
+                      {client.invoices.length === 0 ? "" : unpaidBalance > 0 ? formatCurrency(unpaidBalance) : "À jour"}
                     </Td>
                     <Td className="text-right">
                       <div className="flex justify-end gap-2">

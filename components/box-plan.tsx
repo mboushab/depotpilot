@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useActionState } from "react";
-import { Euro, LogOut, Download } from "lucide-react";
+import { Euro, LogOut, Download, Pencil, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
@@ -11,9 +11,11 @@ import {
   extendRentalAction,
   releaseRentalAction,
   confirmBoxPaymentAction,
+  updateRentalRateAction,
   type ExtendRentalState,
   type ReleaseRentalState,
-  type ConfirmBoxPaymentState
+  type ConfirmBoxPaymentState,
+  type UpdateRentalRateState
 } from "@/server/actions/forms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -214,14 +216,16 @@ function BoxDetails({
         {box.activeRental ? <Row label="Type" value={box.activeRental.type === "ONE_TIME" ? "Ponctuel" : "Mensuel"} /> : null}
         <Row label="Entrée" value={box.activeRental ? format(new Date(box.activeRental.startDate), "dd MMM yyyy", { locale: fr }) : "-"} />
         <Row label="Sortie" value={box.activeRental?.endDate ? format(new Date(box.activeRental.endDate), "dd MMM yyyy", { locale: fr }) : "Non planifiée"} />
-        <Row
-          label={box.activeRental?.type === "ONE_TIME" ? "Prix" : "Loyer"}
-          value={
-            box.activeRental?.type === "ONE_TIME"
-              ? formatCurrency(box.activeRental.monthlyRateCents)
-              : `${formatCurrency(box.activeRental?.monthlyRateCents ?? box.monthlyRateCents)} / mois`
-          }
-        />
+        {box.activeRental ? (
+          <RentRow
+            rentalId={box.activeRental.id}
+            label={box.activeRental.type === "ONE_TIME" ? "Prix" : "Loyer"}
+            valueCents={box.activeRental.monthlyRateCents}
+            suffix={box.activeRental.type === "ONE_TIME" ? "" : " / mois"}
+          />
+        ) : (
+          <Row label="Loyer" value={`${formatCurrency(box.monthlyRateCents)} / mois`} />
+        )}
         {box.activeRental ? (
           <Row label="Statut" value={box.status === "RESERVED" ? "Réservé" : balance > 0 ? "Impayé" : "Payé"} />
         ) : null}
@@ -402,6 +406,70 @@ function Row({ label, value, danger }: { label: string; value: string; danger?: 
     <div className="flex justify-between gap-4 border-b pb-2">
       <span className={danger ? "text-red-600" : "text-muted-foreground"}>{label}</span>
       <span className={`text-right font-medium ${danger ? "text-red-600" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function RentRow({ rentalId, label, valueCents, suffix }: { rentalId: string; label: string; valueCents: number; suffix: string }) {
+  const [editing, setEditing] = useState(false);
+  const [state, formAction, isPending] = useActionState(updateRentalRateAction, { status: "idle" } as UpdateRentalRateState);
+  const formRef = useRef<HTMLFormElement>(null);
+  const amountCentsRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      toast.success("Prix mis à jour.");
+    } else if (state.status === "error") {
+      toast.error(state.message);
+    }
+  }, [state]);
+
+  if (editing) {
+    return (
+      <form
+        ref={formRef}
+        action={formAction}
+        onSubmit={() => setEditing(false)}
+        className="flex items-center justify-between gap-2 border-b pb-2"
+      >
+        <input type="hidden" name="rentalId" value={rentalId} />
+        <span className="text-muted-foreground">{label}</span>
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            defaultValue={(valueCents / 100).toFixed(2)}
+            className="h-8 w-24 text-right"
+            autoFocus
+            onChange={(event) => {
+              if (amountCentsRef.current) {
+                amountCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
+              }
+            }}
+          />
+          <input type="hidden" name="monthlyRateCents" ref={amountCentsRef} defaultValue={valueCents} />
+          <button type="submit" disabled={isPending} className="grid h-7 w-7 shrink-0 place-items-center rounded hover:bg-muted" aria-label="Enregistrer">
+            <Check className="h-3.5 w-3.5 text-emerald-600" />
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded hover:bg-muted" aria-label="Annuler">
+            <X className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex justify-between gap-4 border-b pb-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-1.5 text-right font-medium">
+        {formatCurrency(valueCents)}
+        {suffix}
+        <button type="button" onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground" aria-label="Modifier le prix">
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </span>
     </div>
   );
 }

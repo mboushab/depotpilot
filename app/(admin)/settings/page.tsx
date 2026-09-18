@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "@/components/forms/settings-form";
 import { BoxRatesForm } from "@/components/forms/box-rates-form";
-import { UnitForm } from "@/components/unit-form";
+import { AddBoxDialog } from "@/components/settings/add-box-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function SettingsPage() {
@@ -32,21 +32,18 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>Tarifs des box</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>Tarifs des box</CardTitle>
+          <AddBoxDialog suggestedCode={`B-${String(units.length).padStart(2, "0")}`} />
+        </CardHeader>
         <CardContent>
           <BoxRatesForm units={units.map((unit) => ({ id: unit.id, code: unit.code, monthlyRateCents: unit.monthlyRateCents }))} />
         </CardContent>
       </Card>
-      {units.length < 30 ? (
-        <Card>
-          <CardHeader><CardTitle>Nouveau box</CardTitle></CardHeader>
-          <CardContent><UnitForm suggestedCode={`B-${String(units.length).padStart(2, "0")}`} /></CardContent>
-        </Card>
-      ) : null}
       <Card>
         <CardHeader><CardTitle>Contraintes fixes</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-md border px-4 py-3"><div className="font-semibold">Box de stockage</div><p className="text-sm text-muted-foreground">30 box exactement.</p></div>
+          <div className="rounded-md border px-4 py-3"><div className="font-semibold">Box de stockage</div><p className="text-sm text-muted-foreground">{units.length} box actuellement — extensible depuis "Tarifs des box".</p></div>
           <div className="rounded-md border px-4 py-3"><div className="font-semibold">Chargement</div><p className="text-sm text-muted-foreground">2 emplacements exactement.</p></div>
         </CardContent>
       </Card>
