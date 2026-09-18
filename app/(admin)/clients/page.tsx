@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { AddClientDialog } from "@/components/clients/add-client-dialog";
+import { DeleteClientButton } from "@/components/clients/delete-client-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -76,7 +77,7 @@ export default async function ClientsPage({
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
-            <thead><tr><Th>Nom</Th><Th>E-mail</Th><Th>Téléphone</Th><Th>Ville</Th><Th>Box</Th><Th>Parking</Th><Th>Statut paiement</Th><Th className="text-right">Solde impayé</Th></tr></thead>
+            <thead><tr><Th>Nom</Th><Th>E-mail</Th><Th>Téléphone</Th><Th>Ville</Th><Th>Box</Th><Th>Parking</Th><Th>Statut paiement</Th><Th className="text-right">Solde impayé</Th><Th></Th></tr></thead>
             <tbody>
               {clients.map((client) => {
                 const unpaidBalance = client.invoices.reduce((sum, invoice) => sum + Math.max(invoice.totalCents - invoice.paidCents, 0), 0);
@@ -92,11 +93,14 @@ export default async function ClientsPage({
                     <Td className={`text-right font-medium ${unpaidBalance > 0 ? "text-red-600" : ""}`}>
                       {unpaidBalance > 0 ? formatCurrency(unpaidBalance) : "À jour"}
                     </Td>
+                    <Td className="text-right">
+                      <DeleteClientButton id={client.id} name={`${client.firstName} ${client.lastName}`} />
+                    </Td>
                   </tr>
                 );
               })}
               {clients.length === 0 ? (
-                <tr><Td colSpan={8} className="text-center text-muted-foreground">Aucun client pour cette recherche.</Td></tr>
+                <tr><Td colSpan={9} className="text-center text-muted-foreground">Aucun client pour cette recherche.</Td></tr>
               ) : null}
             </tbody>
           </Table>

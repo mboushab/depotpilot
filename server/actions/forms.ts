@@ -47,6 +47,28 @@ export async function createOccupantAction(_prevState: CreateOccupantState, form
   return { status: "success", occupantId: occupant.id };
 }
 
+export type DeleteOccupantState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
+
+export async function deleteOccupantAction(_prevState: DeleteOccupantState, formData: FormData): Promise<DeleteOccupantState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const occupant = await prisma.occupant.findUniqueOrThrow({
+    where: { id },
+    include: { rentals: true, invoices: true, parkingAssignments: true }
+  });
+
+  if (occupant.rentals.some((rental) => rental.status === "ACTIVE")) {
+    return { status: "error", message: "Impossible de supprimer un client qui occupe un box." };
+  }
+  if (occupant.rentals.length > 0 || occupant.invoices.length > 0 || occupant.parkingAssignments.length > 0) {
+    return { status: "error", message: "Impossible de supprimer ce client : il a un historique de location, facturation ou stationnement." };
+  }
+
+  await prisma.occupant.delete({ where: { id } });
+  revalidatePath("/clients");
+  return { status: "success" };
+}
+
 export async function createUnitAction(formData: FormData) {
   await requireAdmin();
   const count = await prisma.storageUnit.count();
