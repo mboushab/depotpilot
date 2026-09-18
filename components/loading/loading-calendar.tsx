@@ -50,13 +50,12 @@ const DEFAULT_END_HOUR = 19;
 const HOUR_HEIGHT = 56;
 const MONTH_MAX_VISIBLE = 3;
 
-const STATUS_LEGEND = ["SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
+const STATUS_LEGEND = ["SCHEDULED", "IN_PROGRESS", "COMPLETED"];
 
 const STATUS_STYLES: Record<string, { block: string; dot: string }> = {
   SCHEDULED: { block: "border-l-4 border-violet-500 bg-violet-50 text-violet-800", dot: "bg-violet-500" },
   IN_PROGRESS: { block: "border-l-4 border-cyan-500 bg-cyan-50 text-cyan-800", dot: "bg-cyan-500" },
-  COMPLETED: { block: "border-l-4 border-emerald-500 bg-emerald-50 text-emerald-800", dot: "bg-emerald-500" },
-  CANCELLED: { block: "border-l-4 border-slate-300 bg-slate-50 text-slate-400 line-through", dot: "bg-slate-400" }
+  COMPLETED: { block: "border-l-4 border-emerald-500 bg-emerald-50 text-emerald-800", dot: "bg-emerald-500" }
 };
 
 function layoutDay<T extends { start: Date; end: Date }>(items: T[]) {

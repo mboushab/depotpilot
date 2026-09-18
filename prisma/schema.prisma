@@ -52,7 +52,6 @@ enum LoadingStatus {
   SCHEDULED
   IN_PROGRESS
   COMPLETED
-  CANCELLED
 }
 
 enum NotificationType {
