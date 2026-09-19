@@ -28,7 +28,7 @@ export function DeleteClientButton({ id, name }: { id: string; name: string }) {
           type="button"
           variant="outline"
           size="sm"
-          className="text-red-700 hover:bg-red-50"
+          className="text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
           disabled={isPending}
           onClick={() => setConfirmOpen(true)}
           aria-label={`Supprimer ${name}`}

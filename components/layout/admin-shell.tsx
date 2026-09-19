@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Bell, CalendarClock, Car, FileText, LayoutDashboard, LogOut, Menu, Settings, Users, Warehouse, X } from "lucide-react";
 import { logoutAction } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const nav = [
   { href: "/dashboard", label: "Accueil", icon: LayoutDashboard },
@@ -66,7 +67,7 @@ export function AdminShell({
 
   return (
     <div className="min-h-screen">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-white/94 px-4 py-5 lg:block">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-white/94 px-4 py-5 dark:bg-card/94 lg:block">
         <BrandLink />
         <NavLinks unreadNotifications={unreadNotifications} />
       </aside>
@@ -74,7 +75,7 @@ export function AdminShell({
       {mobileNavOpen ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="fixed inset-0 bg-black/40" onClick={() => setMobileNavOpen(false)} />
-          <aside className="fixed inset-y-0 left-0 w-64 border-r bg-white px-4 py-5 shadow-panel">
+          <aside className="fixed inset-y-0 left-0 w-64 border-r bg-white px-4 py-5 shadow-panel dark:bg-card">
             <div className="flex items-center justify-between">
               <BrandLink onNavigate={() => setMobileNavOpen(false)} />
               <button
@@ -92,7 +93,7 @@ export function AdminShell({
       ) : null}
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b bg-white/90 px-4 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b bg-white/90 px-4 backdrop-blur dark:bg-card/90 md:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -104,12 +105,15 @@ export function AdminShell({
             </button>
             <div className="truncate text-sm font-medium text-muted-foreground">Connecté en tant que {userName}</div>
           </div>
-          <form action={logoutAction}>
-            <Button variant="outline" size="sm">
-              <LogOut className="h-4 w-4" />
-              Déconnexion
-            </Button>
-          </form>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <form action={logoutAction}>
+              <Button variant="outline" size="sm">
+                <LogOut className="h-4 w-4" />
+                Déconnexion
+              </Button>
+            </form>
+          </div>
         </header>
         <main className="px-4 py-6 md:px-8">{children}</main>
       </div>

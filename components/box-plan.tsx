@@ -51,11 +51,11 @@ function getBoxSignal(box: BoxCard, leadDays: number) {
     ? new Date(box.activeRental.endDate).getTime() - Date.now() <= leadDays * 24 * 60 * 60 * 1000
     : false;
 
-  if (box.status === "AVAILABLE") return { label: "Libre", className: "border-amber-400 bg-amber-400/15 text-amber-700" };
-  if (box.status === "RESERVED") return { label: "Réservé", className: "border-violet-500 bg-violet-500/15 text-violet-700" };
-  if (unpaid) return { label: "Impayé", className: "border-rose-400 bg-rose-400/15 text-rose-700" };
-  if (exitClose) return { label: "Sortie proche", className: "border-orange-500 bg-orange-500/15 text-orange-700" };
-  return { label: "Occupé", className: "border-emerald-400 bg-emerald-400/15 text-emerald-700" };
+  if (box.status === "AVAILABLE") return { label: "Libre", className: "border-amber-400 bg-amber-400/15 text-amber-700 dark:text-amber-300" };
+  if (box.status === "RESERVED") return { label: "Réservé", className: "border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-300" };
+  if (unpaid) return { label: "Impayé", className: "border-rose-400 bg-rose-400/15 text-rose-700 dark:text-rose-300" };
+  if (exitClose) return { label: "Sortie proche", className: "border-orange-500 bg-orange-500/15 text-orange-700 dark:text-orange-300" };
+  return { label: "Occupé", className: "border-emerald-400 bg-emerald-400/15 text-emerald-700 dark:text-emerald-300" };
 }
 
 export function BoxPlan({
@@ -109,7 +109,7 @@ export function BoxPlan({
         <Metric label="Sorties proches" value={String(stats.exitClose)} tone="warning" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="rounded-lg border bg-white p-4 shadow-panel">
+        <div className="rounded-lg border bg-card p-4 shadow-panel">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Plan des box</h2>
             <div className="flex flex-wrap items-center gap-3">
@@ -117,7 +117,7 @@ export function BoxPlan({
                 <button
                   type="button"
                   onClick={() => setStatusFilter(null)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-white text-slate-700 hover:bg-muted"}`}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
                 >
                   Tous
                 </button>
@@ -126,7 +126,7 @@ export function BoxPlan({
                     key={option.label}
                     type="button"
                     onClick={() => setStatusFilter(statusFilter === option.label ? null : option.label)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === option.label ? "bg-slate-900 text-white" : "border bg-white text-slate-700 hover:bg-muted"}`}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === option.label ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
                   >
                     {option.label} ({option.count})
                   </button>
@@ -223,7 +223,7 @@ function BoxDetails({
   }, [paymentState]);
 
   return (
-    <aside className="rounded-lg border bg-white p-5 shadow-panel">
+    <aside className="rounded-lg border bg-card p-5 shadow-panel">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Box {box.code}</h2>
         <span className="rounded-full bg-muted px-3 py-1 text-sm font-semibold">{signal.label}</span>
@@ -313,7 +313,7 @@ function BoxDetails({
       />
       {confirmPaymentOpen ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmPaymentOpen(false)}>
-          <div className="w-full max-w-sm rounded-lg border bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-lg border bg-card p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-base font-semibold">Confirmer le paiement de ce box</h3>
             <p className="mt-1 text-sm text-muted-foreground">Solde restant : {formatCurrency(balance)}</p>
             <div className="mt-4 space-y-2">
@@ -394,7 +394,7 @@ function ReleaseBoxButton({ rentalId }: { rentalId: string }) {
         <Button
           type="button"
           variant="outline"
-          className="w-full text-red-700 hover:bg-red-50"
+          className="w-full text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
           disabled={isPending}
           onClick={() => setConfirmOpen(true)}
         >
@@ -418,7 +418,7 @@ function ReleaseBoxButton({ rentalId }: { rentalId: string }) {
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "danger" | "warning" }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-panel">
+    <div className="rounded-lg border bg-card p-4 shadow-panel">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className={`mt-1 text-2xl font-semibold ${tone === "danger" ? "text-red-600" : tone === "warning" ? "text-amber-600" : ""}`}>{value}</p>
     </div>

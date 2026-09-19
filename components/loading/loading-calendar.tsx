@@ -53,9 +53,9 @@ const MONTH_MAX_VISIBLE = 3;
 const STATUS_LEGEND = ["SCHEDULED", "IN_PROGRESS", "COMPLETED"];
 
 const STATUS_STYLES: Record<string, { block: string; dot: string }> = {
-  SCHEDULED: { block: "border-l-4 border-violet-500 bg-violet-50 text-violet-800", dot: "bg-violet-500" },
-  IN_PROGRESS: { block: "border-l-4 border-cyan-500 bg-cyan-50 text-cyan-800", dot: "bg-cyan-500" },
-  COMPLETED: { block: "border-l-4 border-emerald-500 bg-emerald-50 text-emerald-800", dot: "bg-emerald-500" }
+  SCHEDULED: { block: "border-l-4 border-violet-500 bg-violet-50 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300", dot: "bg-violet-500" },
+  IN_PROGRESS: { block: "border-l-4 border-cyan-500 bg-cyan-50 text-cyan-800 dark:bg-cyan-500/15 dark:text-cyan-300", dot: "bg-cyan-500" },
+  COMPLETED: { block: "border-l-4 border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300", dot: "bg-emerald-500" }
 };
 
 // Nothing ever updates the persisted `status` column (there's no cron job
@@ -231,7 +231,7 @@ export function LoadingCalendar({ appointments }: { appointments: CalendarAppoin
       </div>
 
       {view === "week" ? (
-        <div className="flex overflow-hidden rounded-lg border bg-white">
+        <div className="flex overflow-hidden rounded-lg border bg-card">
           <div className="w-14 shrink-0 border-r">
             <div className="border-b" style={{ height: 40 }} />
             {hours.map((hour) => (
@@ -305,7 +305,7 @@ export function LoadingCalendar({ appointments }: { appointments: CalendarAppoin
               <div
                 key={day.toISOString()}
                 className={cn(
-                  "min-h-[6rem] rounded-md border bg-white p-1.5",
+                  "min-h-[6rem] rounded-md border bg-card p-1.5",
                   !isSameMonth(day, cursor) ? "bg-muted/30 text-muted-foreground/60" : "",
                   isToday(day) ? "border-primary/60 ring-1 ring-primary/30" : ""
                 )}
@@ -343,7 +343,7 @@ export function LoadingCalendar({ appointments }: { appointments: CalendarAppoin
         <>
           <div className="fixed inset-0 z-40" onClick={closeTooltip} />
           <div
-            className="fixed z-50 w-80 space-y-2 overflow-y-auto rounded-lg border bg-white p-4 text-sm shadow-lg"
+            className="fixed z-50 w-80 space-y-2 overflow-y-auto rounded-lg border bg-card p-4 text-sm shadow-lg"
             style={{ top: tooltip.top, left: tooltip.left, maxHeight: TOOLTIP_MAX_HEIGHT }}
           >
             {mode === "edit" ? (
@@ -421,12 +421,12 @@ function EditAppointmentForm({ appointment, onSuccess, onCancel }: { appointment
       </div>
       <DateTimePicker name="startsAt" defaultValue={startValue} />
       <div className="flex gap-2">
-        <select className="h-10 flex-1 rounded-md border bg-white px-2 text-sm" name="durationValue" defaultValue={duration.value}>
+        <select className="h-10 flex-1 rounded-md border bg-white px-2 text-sm text-foreground dark:bg-card" name="durationValue" defaultValue={duration.value}>
           {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => (
             <option key={value} value={value}>{value}</option>
           ))}
         </select>
-        <select className="h-10 flex-1 rounded-md border bg-white px-2 text-sm" name="durationUnit" defaultValue={duration.unit}>
+        <select className="h-10 flex-1 rounded-md border bg-white px-2 text-sm text-foreground dark:bg-card" name="durationUnit" defaultValue={duration.unit}>
           <option value="HOURS">Heures</option>
           <option value="DAYS">Jours</option>
         </select>
@@ -465,7 +465,7 @@ function DeleteAppointmentButton({ id, onSuccess }: { id: string; onSuccess: () 
           type="button"
           variant="outline"
           size="sm"
-          className="w-full text-red-700 hover:bg-red-50"
+          className="w-full text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
           disabled={isPending}
           onClick={() => setConfirmOpen(true)}
         >

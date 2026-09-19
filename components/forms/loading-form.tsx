@@ -63,14 +63,14 @@ export function LoadingForm({ onSuccess }: { onSuccess?: () => void }) {
       </Field>
       <Field label="Début"><DateTimePicker name="startsAt" minDate={minStart} /></Field>
       <Field label="Durée">
-        <select className="h-10 w-full rounded-md border bg-white px-3 text-sm" name="durationValue" defaultValue={1}>
+        <select className="h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground dark:bg-card" name="durationValue" defaultValue={1}>
           {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => (
             <option key={value} value={value}>{value}</option>
           ))}
         </select>
       </Field>
       <Field label="Unité">
-        <select className="h-10 w-full rounded-md border bg-white px-3 text-sm" name="durationUnit" defaultValue="HOURS">
+        <select className="h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground dark:bg-card" name="durationUnit" defaultValue="HOURS">
           <option value="HOURS">Heures</option>
           <option value="DAYS">Jours</option>
         </select>

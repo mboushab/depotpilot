@@ -20,7 +20,7 @@ export function PaymentForm({ invoices }: { invoices: InvoiceOption[] }) {
       <div className="space-y-2 md:col-span-2">
         <Label>Facture</Label>
         <select
-          className="h-10 w-full rounded-md border bg-white px-3 text-sm"
+          className="h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground dark:bg-card"
           name="invoiceId"
           onChange={(event) => {
             const invoice = invoices.find((item) => item.id === event.target.value);
@@ -51,7 +51,7 @@ export function PaymentForm({ invoices }: { invoices: InvoiceOption[] }) {
       </div>
       <div className="space-y-2">
         <Label>Moyen</Label>
-        <select className="h-10 w-full rounded-md border bg-white px-3 text-sm" {...form.register("method")}>
+        <select className="h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground dark:bg-card" {...form.register("method")}>
           <option value="CARD">Carte</option>
           <option value="BANK_TRANSFER">Virement</option>
           <option value="DIRECT_DEBIT">Prélèvement</option>

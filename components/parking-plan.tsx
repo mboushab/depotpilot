@@ -46,7 +46,7 @@ export function ParkingPlan({ cars }: { cars: ParkedCar[] }) {
           <Metric label="Gratuit" value={String(cars.length - overdueCount)} />
           <Metric label="Payant" value={String(overdueCount)} tone="danger" />
         </div>
-        <div className="rounded-lg border bg-white p-4 shadow-panel">
+        <div className="rounded-lg border bg-card p-4 shadow-panel">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Véhicules stationnés</h2>
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
@@ -85,7 +85,7 @@ function ParkingDetails({ car }: { car: ParkedCar }) {
   const signal = getCarSignal(car);
 
   return (
-    <aside className="rounded-lg border bg-white p-5 shadow-panel">
+    <aside className="rounded-lg border bg-card p-5 shadow-panel">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">{car.vehiclePlate}</h2>
         <span className="rounded-full bg-muted px-3 py-1 text-sm font-semibold">{signal.label}</span>
@@ -156,7 +156,7 @@ function ReleaseParkingButton({ assignmentId }: { assignmentId: string }) {
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "danger" | "warning" }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-panel">
+    <div className="rounded-lg border bg-card p-4 shadow-panel">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className={`mt-1 text-2xl font-semibold ${tone === "danger" ? "text-red-600" : tone === "warning" ? "text-amber-600" : ""}`}>{value}</p>
     </div>

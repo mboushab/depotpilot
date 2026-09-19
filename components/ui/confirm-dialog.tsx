@@ -44,7 +44,7 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         className={cn(
-          "w-full max-w-sm rounded-lg border bg-white p-5 shadow-xl transition-all duration-200",
+          "w-full max-w-sm rounded-lg border bg-card p-5 shadow-xl transition-all duration-200",
           visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-95 opacity-0"
         )}
         onClick={(event) => event.stopPropagation()}

@@ -93,7 +93,7 @@ export function RentBoxForm({
           />
         }
       >
-        <select ref={selectRef} className="h-10 w-full rounded-md border bg-white px-3 text-sm" name="occupantId" defaultValue="">
+        <select ref={selectRef} className="h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground dark:bg-card" name="occupantId" defaultValue="">
           <option value="">Sélectionner</option>
           {clientOptions.map((occupant) => <option key={occupant.id} value={occupant.id}>{occupant.label}</option>)}
         </select>

@@ -39,7 +39,7 @@ export function SettingsForm({ defaults }: { defaults: SettingsInput }) {
         <input type="hidden" name="defaultParkingRateCents" ref={parkingRateCentsRef} defaultValue={defaults.defaultParkingRateCents} />
       </Field>
       <Field label="Alerte sortie impayée (jours)"><Input type="number" name="notificationLeadDays" defaultValue={defaults.notificationLeadDays} /></Field>
-      <div className="flex items-center gap-3 rounded-md border bg-white px-3 py-2">
+      <div className="flex items-center gap-3 rounded-md border bg-white px-3 py-2 dark:bg-card">
         <input id="depositEnabled" type="checkbox" name="depositEnabled" className="h-4 w-4" defaultChecked={defaults.depositEnabled} />
         <Label htmlFor="depositEnabled">Activer le dépôt de garantie</Label>
       </div>

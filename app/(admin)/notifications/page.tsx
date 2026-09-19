@@ -32,7 +32,7 @@ export default async function NotificationsPage() {
             <div
               key={notification.id}
               className={`flex items-start justify-between gap-4 rounded-md border px-4 py-3 ${
-                notification.readAt ? "" : "border-sky-200 bg-sky-50"
+                notification.readAt ? "" : "border-sky-200 bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/10"
               }`}
             >
               <div>

@@ -73,7 +73,7 @@ export default async function InvoicesPage({
           <div className="flex flex-wrap gap-2">
             <Link
               href="/invoices"
-              className={`rounded-full border px-3 py-1 text-xs font-semibold ${!statusFilter ? "bg-primary text-primary-foreground" : "bg-white"}`}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${!statusFilter ? "bg-primary text-primary-foreground" : "bg-white dark:bg-card"}`}
             >
               Toutes
             </Link>
@@ -81,7 +81,7 @@ export default async function InvoicesPage({
               <Link
                 key={value}
                 href={`/invoices?status=${value}`}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusFilter === value ? "bg-primary text-primary-foreground" : "bg-white"}`}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusFilter === value ? "bg-primary text-primary-foreground" : "bg-white dark:bg-card"}`}
               >
                 {labelStatus(value)}
               </Link>

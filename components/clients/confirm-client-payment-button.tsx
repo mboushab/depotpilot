@@ -41,7 +41,7 @@ export function ConfirmClientPaymentButton({ occupantId, name, balanceCents }: {
       </form>
       {open ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-sm rounded-lg border bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-lg border bg-card p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-base font-semibold">Confirmer le paiement de {name}</h3>
             <p className="mt-1 text-sm text-red-600">Solde restant : {formatCurrency(balanceCents)}</p>
             <div className="mt-4 space-y-2">

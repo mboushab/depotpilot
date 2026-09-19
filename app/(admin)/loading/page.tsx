@@ -17,14 +17,14 @@ export default async function LoadingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-16 z-10 flex flex-wrap items-start justify-between gap-4 bg-white py-2">
+      <div className="sticky top-16 z-10 flex flex-wrap items-start justify-between gap-4 bg-background py-2">
         <div>
           <h1 className="text-2xl font-semibold">Planning des chargements</h1>
           <p className="text-sm text-muted-foreground">Chargements des clients, par ordre d&apos;arrivée.</p>
         </div>
         <ScheduleLoadingDialog />
       </div>
-      <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+      <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
         <p>
           La capacité est limitée à <strong>{capacity} chargements simultanés</strong>. Les conflits sont bloqués automatiquement.

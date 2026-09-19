@@ -39,7 +39,7 @@ export function DateTimePicker({
         previousMonthButtonLabel="Mois précédent"
         nextMonthButtonLabel="Mois suivant"
         wrapperClassName="w-full"
-        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm text-foreground dark:bg-card"
       />
       <input type="hidden" name={name} value={selected ? format(selected, VALUE_FORMAT) : ""} />
     </>
