@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { labelStatus } from "@/lib/status-labels";
 import { PaymentForm } from "@/components/forms/payment-form";
+import { WhatsAppInvoiceButton } from "@/components/invoices/whatsapp-invoice-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -102,12 +103,21 @@ export default async function InvoicesPage({
                   <Td>{format(invoice.dueDate, "dd/MM/yyyy")}</Td>
                   <Td className="text-right font-medium">{formatCurrency(invoice.totalCents)}</Td>
                   <Td className="text-right">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/api/invoices/${invoice.id}/pdf`} target="_blank">
-                        <Download className="h-4 w-4" />
-                        PDF
-                      </Link>
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/api/invoices/${invoice.id}/pdf`} target="_blank">
+                          <Download className="h-4 w-4" />
+                          PDF
+                        </Link>
+                      </Button>
+                      <WhatsAppInvoiceButton
+                        invoiceId={invoice.id}
+                        invoiceNumber={invoice.invoiceNumber}
+                        totalCents={invoice.totalCents}
+                        phone={invoice.occupant.phone}
+                        clientName={invoice.occupant.firstName}
+                      />
+                    </div>
                   </Td>
                 </tr>
               ))}

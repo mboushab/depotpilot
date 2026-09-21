@@ -7,6 +7,7 @@ import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import { RentBoxDialog } from "@/components/box/rent-box-dialog";
+import { WhatsAppInvoiceButton } from "@/components/invoices/whatsapp-invoice-button";
 import {
   extendRentalAction,
   releaseRentalAction,
@@ -264,12 +265,20 @@ function BoxDetails({
           <Button onClick={() => setRenting(true)}>Louer ce box</Button>
         ) : paymentState.status === "success" ? (
           balance <= 0 ? (
-            <Button asChild variant="outline" className="w-full">
-              <a href={`/api/invoices/${paymentState.invoiceId}/pdf`} target="_blank" rel="noreferrer">
-                <Download className="h-4 w-4" />
-                Imprimer la facture
-              </a>
-            </Button>
+            <div className="grid gap-2">
+              <Button asChild variant="outline" className="w-full">
+                <a href={`/api/invoices/${paymentState.invoiceId}/pdf`} target="_blank" rel="noreferrer">
+                  <Download className="h-4 w-4" />
+                  Imprimer la facture
+                </a>
+              </Button>
+              <WhatsAppInvoiceButton
+                invoiceId={paymentState.invoiceId}
+                phone={box.activeRental.occupantPhone}
+                clientName={box.activeRental.occupantName.split(" ")[0]}
+                size="default"
+              />
+            </div>
           ) : (
             <p className="text-center text-sm text-muted-foreground">
               Paiement partiel enregistré. Solde restant : {formatCurrency(balance)}
