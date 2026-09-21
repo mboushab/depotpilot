@@ -16,6 +16,34 @@ function toWhatsAppPhone(raw: string) {
   return cleaned;
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+async function pdfFirstPageToPng(pdf: Blob): Promise<Blob> {
+  // Loaded on demand: the PDF renderer is only needed when this is clicked.
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+  const document_ = await pdfjs.getDocument({ data: new Uint8Array(await pdf.arrayBuffer()) }).promise;
+  const page = await document_.getPage(1);
+  const viewport = page.getViewport({ scale: 2 });
+  const canvas = window.document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const context = canvas.getContext("2d")!;
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: context, viewport, canvas }).promise;
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("png"))), "image/png"));
+}
+
 export function WhatsAppInvoiceButton({
   invoiceId,
   invoiceNumber,
@@ -44,21 +72,35 @@ export function WhatsAppInvoiceButton({
       if (!response.ok) {
         throw new Error("PDF indisponible");
       }
-      const blobUrl = URL.createObjectURL(await response.blob());
-      const download = document.createElement("a");
-      download.href = blobUrl;
-      download.download = `${invoiceNumber ?? "Facture"}.pdf`;
-      document.body.appendChild(download);
-      download.click();
-      download.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+      const pdf = await response.blob();
+
+      // A whatsapp:// link can only carry text, so the invoice itself goes
+      // through the clipboard as an image (Cmd+V in the conversation).
+      // Falls back to a plain PDF download where image copy isn't available.
+      let copied = false;
+      try {
+        if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+          const png = await pdfFirstPageToPng(pdf);
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+          copied = true;
+        }
+      } catch {
+        copied = false;
+      }
+      if (!copied) {
+        downloadBlob(pdf, `${invoiceNumber ?? "Facture"}.pdf`);
+      }
 
       const reference = invoiceNumber ? ` ${invoiceNumber}` : "";
       const amount = totalCents !== undefined ? ` d'un montant de ${formatCurrency(totalCents)}` : "";
       const text = `Bonjour ${clientName}, voici votre facture${reference}${amount}.`;
       window.location.href = `whatsapp://send?phone=${toWhatsAppPhone(phone!)}&text=${encodeURIComponent(text)}`;
 
-      toast.success("Facture téléchargée. Glissez-la dans la conversation WhatsApp (ou trombone → Document).");
+      toast.success(
+        copied
+          ? "Facture copiée. Dans WhatsApp : Cmd+V pour la coller, puis Entrée."
+          : "Facture téléchargée. Glissez-la dans la conversation WhatsApp (ou trombone → Document)."
+      );
     } catch {
       toast.error("Impossible de préparer la facture.");
     } finally {
