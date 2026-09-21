@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export type CreatedClient = { id: string; label: string };
+export type CreatedClient = { id: string; label: string; phone?: string };
 
 export function ClientForm({ onSuccess }: { onSuccess?: (client: CreatedClient) => void }) {
   const [state, formAction, isPending] = useActionState(createOccupantAction, { status: "idle" } as CreateOccupantState);
   const formRef = useRef<HTMLFormElement>(null);
-  const lastSubmission = useRef<{ firstName: string; lastName: string } | null>(null);
+  const lastSubmission = useRef<{ firstName: string; lastName: string; phone: string } | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export function ClientForm({ onSuccess }: { onSuccess?: (client: CreatedClient) 
       const submitted = lastSubmission.current;
       formRef.current?.reset();
       if (submitted) {
-        onSuccess?.({ id: state.occupantId, label: `${submitted.firstName} ${submitted.lastName}` });
+        onSuccess?.({ id: state.occupantId, label: `${submitted.firstName} ${submitted.lastName}`, phone: submitted.phone });
       }
     } else if (state.status === "error") {
       toast.error(state.message);
@@ -42,7 +42,11 @@ export function ClientForm({ onSuccess }: { onSuccess?: (client: CreatedClient) 
           return;
         }
         setPhoneError(null);
-        lastSubmission.current = { firstName: String(data.get("firstName") ?? ""), lastName: String(data.get("lastName") ?? "") };
+        lastSubmission.current = {
+          firstName: String(data.get("firstName") ?? ""),
+          lastName: String(data.get("lastName") ?? ""),
+          phone
+        };
       }}
       className="grid gap-4 md:grid-cols-2"
     >

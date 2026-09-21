@@ -57,7 +57,7 @@ export default async function BoxesPage() {
               : undefined
           };
         })}
-        occupants={occupants.map((occupant) => ({ id: occupant.id, label: `${occupant.firstName} ${occupant.lastName}` }))}
+        occupants={occupants.map((occupant) => ({ id: occupant.id, label: `${occupant.firstName} ${occupant.lastName}`, phone: occupant.phone }))}
         depositEnabled={depositEnabled}
         defaultDepositCents={defaultDepositCents}
         leadDays={leadDays}

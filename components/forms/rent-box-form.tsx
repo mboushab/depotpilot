@@ -9,9 +9,10 @@ import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { WhatsAppInvoiceButton } from "@/components/invoices/whatsapp-invoice-button";
 import { cn } from "@/lib/utils";
 
-type Option = { id: string; label: string };
+type Option = { id: string; label: string; phone?: string };
 
 export function RentBoxForm({
   unitId,
@@ -39,6 +40,7 @@ export function RentBoxForm({
   const selectRef = useRef<HTMLSelectElement>(null);
   const pendingSelectId = useRef<string | null>(null);
   const [clientOptions, setClientOptions] = useState(occupants);
+  const [selectedClientId, setSelectedClientId] = useState("");
 
   useEffect(() => {
     if (pendingSelectId.current && selectRef.current) {
@@ -54,6 +56,8 @@ export function RentBoxForm({
       toast.error(state.message);
     }
   }, [state]);
+
+  const selectedClient = clientOptions.find((option) => option.id === selectedClientId);
 
   if (state.status === "success") {
     return (
@@ -71,6 +75,14 @@ export function RentBoxForm({
               </a>
             </Button>
           ) : null}
+          {state.paid ? (
+            <WhatsAppInvoiceButton
+              invoiceId={state.invoiceId}
+              phone={selectedClient?.phone}
+              clientName={selectedClient?.label.split(" ")[0] ?? ""}
+              size="default"
+            />
+          ) : null}
           <Button onClick={onClose}>Fermer</Button>
         </div>
       </div>
@@ -87,13 +99,20 @@ export function RentBoxForm({
           <NewClientDialog
             onCreated={(client) => {
               pendingSelectId.current = client.id;
+              setSelectedClientId(client.id);
               setClientOptions((current) => [...current, client]);
               toast.success(`${client.label} sélectionné.`);
             }}
           />
         }
       >
-        <select ref={selectRef} className="h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground dark:bg-card" name="occupantId" defaultValue="">
+        <select
+          ref={selectRef}
+          className="h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground dark:bg-card"
+          name="occupantId"
+          defaultValue=""
+          onChange={(event) => setSelectedClientId(event.target.value)}
+        >
           <option value="">Sélectionner</option>
           {clientOptions.map((occupant) => <option key={occupant.id} value={occupant.id}>{occupant.label}</option>)}
         </select>

@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { RentBoxForm } from "@/components/forms/rent-box-form";
 
-type Option = { id: string; label: string };
+type Option = { id: string; label: string; phone?: string };
 
 export function RentBoxDialog({
   open,

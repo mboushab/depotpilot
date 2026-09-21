@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-type Option = { id: string; label: string };
+type Option = { id: string; label: string; phone?: string };
 
 type BoxCard = {
   id: string;
