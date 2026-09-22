@@ -1,21 +1,43 @@
-import Link from "next/link";
-import { ShieldCheck, Tv } from "lucide-react";
+import { eachDayOfInterval, endOfWeek, isSameDay, startOfWeek } from "date-fns";
+import { ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { LoadingCalendar } from "@/components/loading/loading-calendar";
 import { ScheduleLoadingDialog } from "@/components/loading/schedule-loading-dialog";
+import { WeeklyScheduleDownload } from "@/components/loading/weekly-schedule-download";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 
 export default async function LoadingPage() {
-  const [capacity, appointments] = await Promise.all([
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+
+  const [capacity, appointments, weekAppointments] = await Promise.all([
     prisma.loadingBay.count(),
     // Only current/future appointments — past ones aren't shown and would
     // otherwise accumulate here forever.
     prisma.loadingAppointment.findMany({
-      where: { endsAt: { gte: new Date() } },
+      where: { endsAt: { gte: now } },
+      orderBy: { startsAt: "asc" }
+    }),
+    // Separate query for the downloadable weekly board: it also needs
+    // earlier-this-week (possibly already completed) appointments.
+    prisma.loadingAppointment.findMany({
+      where: { startsAt: { lte: weekEnd }, endsAt: { gte: weekStart } },
       orderBy: { startsAt: "asc" }
     })
   ]);
+
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd }).map((date) => ({
+    date: date.toISOString(),
+    appointments: weekAppointments
+      .filter((appointment) => isSameDay(appointment.startsAt, date))
+      .map((appointment) => ({
+        id: appointment.id,
+        startsAt: appointment.startsAt.toISOString(),
+        endsAt: appointment.endsAt.toISOString(),
+        clientName: appointment.clientName
+      }))
+  }));
 
   return (
     <div className="space-y-6">
@@ -25,12 +47,7 @@ export default async function LoadingPage() {
           <p className="text-sm text-muted-foreground">Chargements des clients, par ordre d&apos;arrivée.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href="/loading/screen" target="_blank" rel="noopener noreferrer">
-              <Tv className="h-4 w-4" />
-              Écran TV
-            </Link>
-          </Button>
+          <WeeklyScheduleDownload weekStart={weekStart.toISOString()} weekEnd={weekEnd.toISOString()} days={weekDays} />
           <ScheduleLoadingDialog />
         </div>
       </div>
