@@ -12,13 +12,7 @@ import { loginSchema, type LoginInput } from "@/lib/validations";
 
 export function LoginForm() {
   const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, {});
-  const form = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "admin@boxpilot.local",
-      password: "BoxPilot!2026"
-    }
-  });
+  const form = useForm<LoginInput>({ resolver: zodResolver(loginSchema) });
 
   return (
     <form action={action} className="space-y-4">
