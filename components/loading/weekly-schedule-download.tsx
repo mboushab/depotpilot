@@ -40,6 +40,11 @@ export function WeeklyScheduleDownload({ weekStart, weekEnd, days }: { weekStart
       const target = boardRef.current;
       if (!target) throw new Error("target not found");
 
+      // Web fonts loading after the click but before capture is what was
+      // throwing badge/text baselines off (html2canvas measures text with
+      // whatever font is active at capture time) — wait for them first.
+      await document.fonts.ready;
+
       // Loaded on demand: only needed when this is clicked. The board is
       // rendered off-screen (not display:none, html2canvas needs real
       // layout) purely to be captured — no dedicated route to visit first.
@@ -100,7 +105,7 @@ export function WeeklyScheduleDownload({ weekStart, weekEnd, days }: { weekStart
                       {format(date, "EEEE d", { locale: fr })}
                     </p>
                     {day.appointments.length > 0 ? (
-                      <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-white/60">
+                      <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-white/10 px-1.5 text-xs font-semibold leading-none text-white/60">
                         {day.appointments.length}
                       </span>
                     ) : null}
@@ -113,11 +118,13 @@ export function WeeklyScheduleDownload({ weekStart, weekEnd, days }: { weekStart
                         const status = deriveLoadingDisplayStatus(new Date(appointment.startsAt), new Date(appointment.endsAt), now);
                         return (
                           <div key={appointment.id} className="rounded-lg bg-white/5 p-2.5">
-                            <p className="text-sm font-semibold tabular-nums text-white/90">
+                            <p className="text-sm font-semibold leading-tight tabular-nums text-white/90">
                               {format(new Date(appointment.startsAt), "HH:mm")}–{format(new Date(appointment.endsAt), "HH:mm")}
                             </p>
-                            <p className="truncate text-sm font-medium">{appointment.clientName}</p>
-                            <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[status]}`}>
+                            <p className="truncate pt-1 text-sm font-medium leading-tight">{appointment.clientName}</p>
+                            <span
+                              className={`mt-1.5 inline-flex h-5 items-center rounded-full px-2 text-[11px] font-semibold leading-none ${STATUS_STYLES[status]}`}
+                            >
                               {labelStatus(status)}
                             </span>
                           </div>
