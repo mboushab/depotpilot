@@ -21,6 +21,16 @@ export type ScreenDay = {
   appointments: ScreenAppointment[];
 };
 
+// clientName is free text ("Prénom Nom" as typed by an admin), so a long
+// one can push past the card's width. Rather than let it get squeezed to
+// an ellipsis, fall back to just the last word (the nom de famille).
+function displayClientName(fullName: string, maxLength = 16) {
+  const trimmed = fullName.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  const words = trimmed.split(/\s+/);
+  return words[words.length - 1];
+}
+
 // Bright, high-contrast badges on a dark background — readable even once
 // downsized into a still image.
 const STATUS_STYLES: Record<string, string> = {
@@ -111,7 +121,7 @@ export function WeeklyScheduleDownload({ weekStart, weekEnd, days }: { weekStart
                             <p className="text-sm font-semibold leading-tight tabular-nums text-white/90">
                               {format(new Date(appointment.startsAt), "HH:mm")}–{format(new Date(appointment.endsAt), "HH:mm")}
                             </p>
-                            <p className="truncate pt-1 text-sm font-medium leading-tight">{appointment.clientName}</p>
+                            <p className="truncate pt-1 text-sm font-medium leading-tight">{displayClientName(appointment.clientName)}</p>
                             <span
                               className={`mt-1.5 inline-flex h-5 items-center rounded-full px-2 text-[11px] font-semibold leading-none ${STATUS_STYLES[status]}`}
                             >
