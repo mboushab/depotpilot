@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { Download } from "lucide-react";
+import { Download, Search } from "lucide-react";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { labelStatus } from "@/lib/status-labels";
-import { PaymentForm } from "@/components/forms/payment-form";
+import { RegisterPaymentDialog } from "@/components/invoices/register-payment-dialog";
 import { WhatsAppInvoiceButton } from "@/components/invoices/whatsapp-invoice-button";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -18,12 +20,22 @@ const INVOICE_STATUSES = ["DRAFT", "ISSUED", "PAID", "OVERDUE", "VOID"] as const
 export default async function InvoicesPage({
   searchParams
 }: {
-  searchParams: Promise<{ page?: string; status?: string }>;
+  searchParams: Promise<{ page?: string; status?: string; q?: string }>;
 }) {
-  const { page: pageParam, status } = await searchParams;
+  const { page: pageParam, status, q } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const statusFilter = status && (INVOICE_STATUSES as readonly string[]).includes(status) ? status : undefined;
-  const where = statusFilter ? { status: statusFilter as (typeof INVOICE_STATUSES)[number] } : undefined;
+  const search = q?.trim() || undefined;
+
+  const where: Prisma.InvoiceWhereInput = {};
+  if (statusFilter) where.status = statusFilter as (typeof INVOICE_STATUSES)[number];
+  if (search) {
+    where.OR = [
+      { invoiceNumber: { contains: search, mode: "insensitive" } },
+      { occupant: { firstName: { contains: search, mode: "insensitive" } } },
+      { occupant: { lastName: { contains: search, mode: "insensitive" } } }
+    ];
+  }
 
   const [invoices, total, unpaidInvoices] = await Promise.all([
     prisma.invoice.findMany({
@@ -45,48 +57,63 @@ export default async function InvoicesPage({
   const buildHref = (targetPage: number) => {
     const params = new URLSearchParams();
     if (statusFilter) params.set("status", statusFilter);
+    if (search) params.set("q", search);
     if (targetPage > 1) params.set("page", String(targetPage));
+    const qs = params.toString();
+    return qs ? `/invoices?${qs}` : "/invoices";
+  };
+
+  const statusHref = (value?: string) => {
+    const params = new URLSearchParams();
+    if (value) params.set("status", value);
+    if (search) params.set("q", search);
     const qs = params.toString();
     return qs ? `/invoices?${qs}` : "/invoices";
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Factures</h1>
-        <p className="text-sm text-muted-foreground">Suivi des échéances, règlements et exports PDF.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Factures</h1>
+          <p className="text-sm text-muted-foreground">Suivi des échéances, règlements et exports PDF.</p>
+        </div>
+        <RegisterPaymentDialog
+          invoices={unpaidInvoices.map((invoice) => ({
+            id: invoice.id,
+            label: `${invoice.invoiceNumber} · ${invoice.occupant.firstName} ${invoice.occupant.lastName} · ${formatCurrency(invoice.totalCents - invoice.paidCents)}`,
+            remainingCents: invoice.totalCents - invoice.paidCents
+          }))}
+        />
       </div>
-      <Card>
-        <CardHeader><CardTitle>Enregistrer un paiement</CardTitle></CardHeader>
-        <CardContent>
-          <PaymentForm
-            invoices={unpaidInvoices.map((invoice) => ({
-              id: invoice.id,
-              label: `${invoice.invoiceNumber} · ${invoice.occupant.firstName} ${invoice.occupant.lastName} · ${formatCurrency(invoice.totalCents - invoice.paidCents)}`,
-              remainingCents: invoice.totalCents - invoice.paidCents
-            }))}
-          />
-        </CardContent>
-      </Card>
       <Card>
         <CardHeader className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle>Registre de facturation</CardTitle>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/invoices"
-              className={`rounded-full border px-3 py-1 text-xs font-semibold ${!statusFilter ? "bg-primary text-primary-foreground" : "bg-white dark:bg-card"}`}
-            >
-              Toutes
-            </Link>
-            {INVOICE_STATUSES.map((value) => (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-2">
               <Link
-                key={value}
-                href={`/invoices?status=${value}`}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusFilter === value ? "bg-primary text-primary-foreground" : "bg-white dark:bg-card"}`}
+                href={statusHref()}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold ${!statusFilter ? "bg-primary text-primary-foreground" : "bg-white dark:bg-card"}`}
               >
-                {labelStatus(value)}
+                Toutes
               </Link>
-            ))}
+              {INVOICE_STATUSES.map((value) => (
+                <Link
+                  key={value}
+                  href={statusHref(value)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusFilter === value ? "bg-primary text-primary-foreground" : "bg-white dark:bg-card"}`}
+                >
+                  {labelStatus(value)}
+                </Link>
+              ))}
+            </div>
+            <form className="flex items-center gap-2" action="/invoices">
+              {statusFilter ? <input type="hidden" name="status" value={statusFilter} /> : null}
+              <Input type="search" name="q" defaultValue={search ?? ""} placeholder="Client ou n° de facture" className="h-8 w-48" />
+              <Button type="submit" size="sm" variant="outline">
+                <Search className="h-4 w-4" />
+              </Button>
+            </form>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
