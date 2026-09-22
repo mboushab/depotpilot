@@ -1,8 +1,10 @@
-import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { ShieldCheck, Tv } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { LoadingCalendar } from "@/components/loading/loading-calendar";
 import { ScheduleLoadingDialog } from "@/components/loading/schedule-loading-dialog";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export default async function LoadingPage() {
   const [capacity, appointments] = await Promise.all([
@@ -22,7 +24,15 @@ export default async function LoadingPage() {
           <h1 className="text-2xl font-semibold">Planning des chargements</h1>
           <p className="text-sm text-muted-foreground">Chargements des clients, par ordre d&apos;arrivée.</p>
         </div>
-        <ScheduleLoadingDialog />
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/loading/screen" target="_blank" rel="noopener noreferrer">
+              <Tv className="h-4 w-4" />
+              Écran TV
+            </Link>
+          </Button>
+          <ScheduleLoadingDialog />
+        </div>
       </div>
       <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />

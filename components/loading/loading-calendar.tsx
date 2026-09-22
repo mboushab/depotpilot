@@ -22,6 +22,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { labelStatus } from "@/lib/status-labels";
+import { deriveLoadingDisplayStatus } from "@/lib/loading-status";
 import { isValidFrenchPhone } from "@/lib/validations";
 import {
   deleteLoadingAppointmentAction,
@@ -57,16 +58,6 @@ const STATUS_STYLES: Record<string, { block: string; dot: string }> = {
   IN_PROGRESS: { block: "border-l-4 border-cyan-500 bg-cyan-50 text-cyan-800 dark:bg-cyan-500/15 dark:text-cyan-300", dot: "bg-cyan-500" },
   COMPLETED: { block: "border-l-4 border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300", dot: "bg-emerald-500" }
 };
-
-// Nothing ever updates the persisted `status` column (there's no cron job
-// and no manual action for it), so it stays SCHEDULED forever in the DB.
-// Derive the displayed status from the current time instead — that's what
-// actually determines whether a slot is upcoming, ongoing, or done.
-function deriveDisplayStatus(start: Date, end: Date, now = new Date()) {
-  if (now < start) return "SCHEDULED";
-  if (now > end) return "COMPLETED";
-  return "IN_PROGRESS";
-}
 
 function layoutDay<T extends { start: Date; end: Date }>(items: T[]) {
   const sorted = [...items].sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -260,7 +251,7 @@ export function LoadingCalendar({ appointments }: { appointments: CalendarAppoin
                         : dayBottomMinutes;
                       const endMinutes = Math.min(rawEndMinutes, dayBottomMinutes);
                       const durationMinutes = Math.max(endMinutes - startMinutes, 20);
-                      const style = STATUS_STYLES[deriveDisplayStatus(appointment.start, appointment.end)];
+                      const style = STATUS_STYLES[deriveLoadingDisplayStatus(appointment.start, appointment.end)];
                       const widthPercent = 100 / appointment.laneCount;
                       return (
                         <button
@@ -315,7 +306,7 @@ export function LoadingCalendar({ appointments }: { appointments: CalendarAppoin
                 </button>
                 <div className="space-y-1">
                   {visible.map((appointment) => {
-                    const style = STATUS_STYLES[deriveDisplayStatus(appointment.start, appointment.end)];
+                    const style = STATUS_STYLES[deriveLoadingDisplayStatus(appointment.start, appointment.end)];
                     return (
                       <button
                         key={appointment.id}
@@ -360,7 +351,7 @@ export function LoadingCalendar({ appointments }: { appointments: CalendarAppoin
                   {format(selected.start, "EEEE d MMMM yyyy", { locale: fr })} de {format(selected.start, "HH:mm")} à {format(selected.end, "HH:mm")}
                 </p>
                 <p className="text-muted-foreground">Téléphone : {selected.clientPhone ?? "-"}</p>
-                <p className="text-muted-foreground">Statut : {labelStatus(deriveDisplayStatus(selected.start, selected.end))}</p>
+                <p className="text-muted-foreground">Statut : {labelStatus(deriveLoadingDisplayStatus(selected.start, selected.end))}</p>
                 <div className="flex gap-2 pt-1">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => setMode("edit")}>
                     Modifier
