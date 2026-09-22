@@ -40,34 +40,24 @@ export function WeeklyScheduleDownload({ weekStart, weekEnd, days }: { weekStart
       const target = boardRef.current;
       if (!target) throw new Error("target not found");
 
-      // Web fonts loading after the click but before capture is what was
-      // throwing badge/text baselines off (html2canvas measures text with
-      // whatever font is active at capture time) — wait for them first.
       await document.fonts.ready;
 
-      // Loaded on demand: only needed when this is clicked. The board is
-      // rendered off-screen (not display:none, html2canvas needs real
-      // layout) purely to be captured — no dedicated route to visit first.
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(target, { backgroundColor: "#0f172a", scale: 2 });
+      // Loaded on demand: only needed when this is clicked. Renders via an
+      // SVG foreignObject, so the real browser lays out the flexbox/grid —
+      // html2canvas re-implements layout itself and got gap/centering
+      // wrong (a status badge ended up overlapping the client's name).
+      const { toBlob } = await import("html-to-image");
+      const blob = await toBlob(target, { backgroundColor: "#0f172a", pixelRatio: 2 });
+      if (!blob) throw new Error("toBlob failed");
 
-      await new Promise<void>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error("toBlob failed"));
-            return;
-          }
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = `chargements-semaine-du-${format(new Date(weekStart), "yyyy-MM-dd")}.png`;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 10_000);
-          resolve();
-        }, "image/png");
-      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `chargements-semaine-du-${format(new Date(weekStart), "yyyy-MM-dd")}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch {
       toast.error("Impossible de générer l'image.");
     } finally {
