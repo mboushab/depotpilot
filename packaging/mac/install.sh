@@ -167,8 +167,19 @@ cp "$PROJECT_DEST/docker-compose.prod.yml" "$SUPPORT_COMPOSE_PROD"
 
 # 6. Build the Docker images now so the client's first click is fast, and do
 #    a full startup so migrations run and demo data seeds before handover.
-echo "==> Building Docker images (this can take a few minutes the first time)"
-compose build
+#    On a very slow/unreliable connection, `npm ci` during the build can
+#    fail repeatedly even with retries. If a pre-built image tarball is
+#    shipped alongside this script (built on a good connection, see
+#    packaging/mac/README.md), load it instead — no network needed for the
+#    app image at all. Postgres still needs its own (much smaller) pull.
+PREBUILT_IMAGE="$SCRIPT_DIR/boxpilot-app-image.tar.gz"
+if [ -f "$PREBUILT_IMAGE" ]; then
+  echo "==> Loading the pre-built app image (no build needed)"
+  gunzip -c "$PREBUILT_IMAGE" | docker load
+else
+  echo "==> Building Docker images (this can take a few minutes the first time)"
+  compose build
+fi
 
 echo "==> Starting BoxPilot to run migrations and seed data"
 compose up -d
