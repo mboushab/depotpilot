@@ -52,8 +52,6 @@ export function RentBoxForm({
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Contrat créé.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
     }
   }, [state]);
 
@@ -212,6 +210,9 @@ export function RentBoxForm({
           </div>
         ) : null}
       </Field>
+      {state.status === "error" ? (
+        <p className="text-sm font-medium text-destructive md:col-span-3">{state.message}</p>
+      ) : null}
       <div className="md:col-span-3"><Button disabled={isPending}>{isPending ? "Création…" : "Créer le contrat"}</Button></div>
     </form>
   );
