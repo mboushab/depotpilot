@@ -145,8 +145,8 @@ export function BoxPlan({
       </div>
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="rounded-lg border bg-card p-4 shadow-panel">
+          <h2 className="mb-3 text-base font-semibold">Plan des box</h2>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Plan des box</h2>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -156,9 +156,7 @@ export function BoxPlan({
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="min-w-[130px] text-center text-sm font-semibold capitalize">
-                {isCurrentMonth ? "Aujourd'hui" : format(monthCursor, "MMMM yyyy", { locale: fr })}
-              </span>
+              <span className="min-w-48 text-sm font-semibold capitalize">{format(monthCursor, "MMMM yyyy", { locale: fr })}</span>
               <button
                 type="button"
                 onClick={() => goToMonth(addMonths(monthCursor, 1))}
@@ -167,11 +165,36 @@ export function BoxPlan({
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
-              {!isCurrentMonth ? (
-                <button type="button" onClick={() => goToMonth(new Date())} className="text-xs font-semibold text-primary underline">
-                  Revenir à aujourd&apos;hui
-                </button>
-              ) : null}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                {(isCurrentMonth
+                  ? [
+                      { label: "Libre", dot: "bg-amber-400" },
+                      { label: "Occupé", dot: "bg-emerald-400" },
+                      { label: "Réservé", dot: "bg-violet-500" },
+                      { label: "Sortie proche", dot: "bg-orange-500" },
+                      { label: "Impayé", dot: "bg-rose-400" }
+                    ]
+                  : [
+                      { label: "Disponible", dot: "bg-amber-400" },
+                      { label: "Occupé", dot: "bg-emerald-400" }
+                    ]
+                ).map(({ label, dot }) => (
+                  <span key={label} className="flex items-center gap-1.5">
+                    <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => goToMonth(new Date())}
+                disabled={isCurrentMonth}
+                className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+              >
+                Aujourd&apos;hui
+              </button>
             </div>
           </div>
           {!isCurrentMonth ? (
@@ -179,46 +202,24 @@ export function BoxPlan({
               Vue simulée pour {format(monthCursor, "MMMM yyyy", { locale: fr })} — une location mensuelle sans date de sortie est considérée occupée pour tout le mois.
             </p>
           ) : null}
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="flex flex-wrap gap-2">
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setStatusFilter(null)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
+            >
+              Tous
+            </button>
+            {filterOptions.map((option) => (
               <button
+                key={option.label}
                 type="button"
-                onClick={() => setStatusFilter(null)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
+                onClick={() => setStatusFilter(statusFilter === option.label ? null : option.label)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === option.label ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
               >
-                Tous
+                {option.label} ({option.count})
               </button>
-              {filterOptions.map((option) => (
-                <button
-                  key={option.label}
-                  type="button"
-                  onClick={() => setStatusFilter(statusFilter === option.label ? null : option.label)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === option.label ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
-                >
-                  {option.label} ({option.count})
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              {(isCurrentMonth
-                ? [
-                    { label: "Libre", dot: "bg-amber-400" },
-                    { label: "Occupé", dot: "bg-emerald-400" },
-                    { label: "Réservé", dot: "bg-violet-500" },
-                    { label: "Sortie proche", dot: "bg-orange-500" },
-                    { label: "Impayé", dot: "bg-rose-400" }
-                  ]
-                : [
-                    { label: "Disponible", dot: "bg-amber-400" },
-                    { label: "Occupé", dot: "bg-emerald-400" }
-                  ]
-              ).map(({ label, dot }) => (
-                <span key={label} className="flex items-center gap-1.5">
-                  <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
-                  {label}
-                </span>
-              ))}
-            </div>
+            ))}
           </div>
           {isCurrentMonth ? (
             visibleBoxes.length === 0 ? (
