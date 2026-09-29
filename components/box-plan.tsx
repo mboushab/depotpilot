@@ -1,7 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useActionState } from "react";
-import { Euro, LogOut, Download, Pencil, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Euro,
+  LogOut,
+  Download,
+  Pencil,
+  Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Package,
+  Users,
+  AlertTriangle,
+  CalendarClock,
+  User,
+  Phone,
+  MapPin,
+  Zap
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { addMonths, endOfMonth, format, isSameMonth, startOfMonth, subMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
@@ -59,6 +77,19 @@ function getBoxSignal(box: BoxCard, leadDays: number) {
   return { label: "Occupé", className: "border-emerald-400 bg-emerald-400/15 text-emerald-700 dark:text-emerald-300" };
 }
 
+// The filter pills display a friendlier plural than the underlying signal
+// label used for matching ("Libre" stays the comparison key everywhere else).
+function filterDisplayLabel(label: string) {
+  const plurals: Record<string, string> = {
+    Libre: "Libres",
+    Occupé: "Occupés",
+    Réservé: "Réservés",
+    Impayé: "Impayés",
+    Disponible: "Disponibles"
+  };
+  return plurals[label] ?? label;
+}
+
 export function BoxPlan({
   boxes,
   occupants,
@@ -114,6 +145,7 @@ export function BoxPlan({
   const periodAvailableCount = periodBoxes.filter((entry) => !entry.occupied).length;
   const periodOccupiedCount = periodBoxes.filter((entry) => entry.occupied).length;
 
+  const totalVisibleCount = isCurrentMonth ? boxes.length : periodBoxes.length;
   const filterOptions = isCurrentMonth
     ? [
         { label: "Libre", count: stats.free },
@@ -138,10 +170,10 @@ export function BoxPlan({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
-        <Metric label="Libres" value={`${stats.free}/30`} />
-        <Metric label="Loués/Payés" value={String(stats.occupied)} />
-        <Metric label="Impayés" value={String(stats.unpaid)} tone="danger" />
-        <Metric label="Sorties proches" value={String(stats.exitClose)} tone="warning" />
+        <Metric icon={Package} label="Libres" value={`${stats.free}/30`} tone="success" />
+        <Metric icon={Users} label="Loués/Payés" value={String(stats.occupied)} tone="info" />
+        <Metric icon={AlertTriangle} label="Impayés" value={String(stats.unpaid)} tone="danger" />
+        <Metric icon={CalendarClock} label="Sorties proches" value={String(stats.exitClose)} tone="warning" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="rounded-lg border bg-card p-4 shadow-panel">
@@ -199,20 +231,27 @@ export function BoxPlan({
             <button
               type="button"
               onClick={() => setStatusFilter(null)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
             >
               Tous
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${statusFilter === null ? "bg-white/20" : "bg-muted"}`}>
+                {totalVisibleCount}
+              </span>
             </button>
-            {filterOptions.map((option) => (
-              <button
-                key={option.label}
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === option.label ? null : option.label)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === option.label ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
-              >
-                {option.label} ({option.count})
-              </button>
-            ))}
+            {filterOptions.map((option) => {
+              const active = statusFilter === option.label;
+              return (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => setStatusFilter(active ? null : option.label)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${active ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
+                >
+                  {filterDisplayLabel(option.label)}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-white/20" : "bg-muted"}`}>{option.count}</span>
+                </button>
+              );
+            })}
           </div>
           {isCurrentMonth ? (
             visibleBoxes.length === 0 ? (
@@ -311,44 +350,69 @@ function BoxDetails({
     }
   }, [paymentState]);
 
+  const isUnpaid = !!box.activeRental && box.status !== "RESERVED" && balance > 0;
+
   return (
     <aside className="rounded-lg border bg-card p-5 shadow-panel">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Box {box.code}</h2>
-        <span className="rounded-full bg-muted px-3 py-1 text-sm font-semibold">{signal.label}</span>
+        <span className={`rounded-full border px-3 py-1 text-sm font-semibold ${signal.className}`}>{signal.label}</span>
       </div>
-      <div className="mt-6 space-y-4 text-sm">
-        <Row label="Client" value={box.activeRental?.occupantName ?? "Aucun client"} />
-        {box.activeRental ? <Row label="Téléphone" value={box.activeRental.occupantPhone} /> : null}
-        {box.activeRental ? <Row label="Type" value={box.activeRental.type === "ONE_TIME" ? "Ponctuel" : "Mensuel"} /> : null}
-        <Row label="Entrée" value={box.activeRental ? format(new Date(box.activeRental.startDate), "dd MMM yyyy", { locale: fr }) : "-"} />
-        <Row label="Sortie" value={box.activeRental?.endDate ? format(new Date(box.activeRental.endDate), "dd MMM yyyy", { locale: fr }) : "Non planifiée"} />
-        {box.activeRental ? (
-          <RentRow
-            rentalId={box.activeRental.id}
-            label={box.activeRental.type === "ONE_TIME" ? "Prix" : "Loyer"}
-            valueCents={box.activeRental.monthlyRateCents}
-            suffix={box.activeRental.type === "ONE_TIME" ? "" : " / mois"}
-          />
-        ) : (
-          <Row label="Loyer" value={`${formatCurrency(box.monthlyRateCents)} / mois`} />
-        )}
-        {box.activeRental ? (
-          box.status !== "RESERVED" && balance <= 0 ? (
-            <StatusRow rentalId={box.activeRental.id} label="Statut" value="Payé" />
+
+      {isUnpaid ? (
+        <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-rose-300 bg-rose-50 p-3 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">Paiement en retard</p>
+            <p className="text-sm">{formatCurrency(balance)} restant</p>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-6 space-y-3">
+        <SectionHeader icon={User} label="Client" />
+        <div className="space-y-4 text-sm">
+          <Row label="Client" value={box.activeRental?.occupantName ?? "Aucun client"} />
+          {box.activeRental ? <Row icon={Phone} label="Téléphone" value={box.activeRental.occupantPhone} /> : null}
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-3">
+        <SectionHeader icon={MapPin} label="Location" />
+        <div className="space-y-4 text-sm">
+          {box.activeRental ? <Row label="Type" value={box.activeRental.type === "ONE_TIME" ? "Ponctuel" : "Mensuel"} /> : null}
+          <Row label="Entrée" value={box.activeRental ? format(new Date(box.activeRental.startDate), "dd MMM yyyy", { locale: fr }) : "-"} />
+          <Row label="Sortie" value={box.activeRental?.endDate ? format(new Date(box.activeRental.endDate), "dd MMM yyyy", { locale: fr }) : "Non planifiée"} />
+          {box.activeRental ? (
+            <RentRow
+              rentalId={box.activeRental.id}
+              label={box.activeRental.type === "ONE_TIME" ? "Prix" : "Loyer"}
+              valueCents={box.activeRental.monthlyRateCents}
+              suffix={box.activeRental.type === "ONE_TIME" ? "" : " / mois"}
+            />
           ) : (
-            <Row label="Statut" value={box.status === "RESERVED" ? "Réservé" : "Impayé"} />
-          )
-        ) : null}
-        {box.activeRental && paidTotal > 0 && balance > 0 ? (
-          <>
-            <Row label="Montant payé" value={formatCurrency(paidTotal)} />
-            <Row label="Solde restant" value={formatCurrency(balance)} danger />
-          </>
-        ) : null}
-        <Row label="Surface" value={`${box.surfaceM2} m2`} />
+            <Row label="Loyer" value={`${formatCurrency(box.monthlyRateCents)} / mois`} />
+          )}
+          {box.activeRental ? (
+            box.status !== "RESERVED" && balance <= 0 ? (
+              <StatusRow rentalId={box.activeRental.id} label="Statut" value="Payé" />
+            ) : (
+              <Row label="Statut" value={box.status === "RESERVED" ? "Réservé" : "Impayé"} />
+            )
+          ) : null}
+          {box.activeRental && paidTotal > 0 && balance > 0 ? (
+            <>
+              <Row label="Montant payé" value={formatCurrency(paidTotal)} />
+              <Row label="Solde restant" value={formatCurrency(balance)} danger />
+            </>
+          ) : null}
+          <Row label="Surface" value={`${box.surfaceM2} m2`} />
+        </div>
       </div>
-      <div className="mt-6 grid gap-2">
+
+      <div className="mt-6 space-y-3">
+        <SectionHeader icon={Zap} label="Actions" />
+        <div className="grid gap-2">
         {!box.activeRental ? (
           <Button onClick={() => setRenting(true)}>Louer ce box</Button>
         ) : paymentState.status === "success" ? (
@@ -385,11 +449,11 @@ function BoxDetails({
                 <input type="hidden" name="amountCents" ref={paymentAmountCentsRef} defaultValue={balance} />
                 <Button
                   type="button"
-                  variant="outline"
                   className="w-full"
                   disabled={isConfirmingPayment}
                   onClick={() => setConfirmPaymentOpen(true)}
                 >
+                  <Euro className="h-4 w-4" />
                   {isConfirmingPayment ? "Confirmation…" : "Confirmer le paiement"}
                 </Button>
               </form>
@@ -397,6 +461,7 @@ function BoxDetails({
             <ReleaseBoxButton rentalId={box.activeRental.id} />
           </>
         )}
+        </div>
       </div>
       <RentBoxDialog
         open={renting}
@@ -513,20 +578,54 @@ function ReleaseBoxButton({ rentalId }: { rentalId: string }) {
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone?: "danger" | "warning" }) {
+const METRIC_TONE_STYLES = {
+  success: "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400",
+  info: "bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400",
+  danger: "bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400",
+  warning: "bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400"
+} as const;
+
+function Metric({
+  icon: Icon,
+  label,
+  value,
+  tone
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  tone: keyof typeof METRIC_TONE_STYLES;
+}) {
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-panel">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${tone === "danger" ? "text-red-600" : tone === "warning" ? "text-amber-600" : ""}`}>{value}</p>
+    <div className="flex items-center gap-3 rounded-lg border bg-card p-4 shadow-panel">
+      <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${METRIC_TONE_STYLES[tone]}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-xl font-bold leading-tight">{value}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
+      </div>
     </div>
   );
 }
 
-function Row({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
+function Row({ icon: Icon, label, value, danger }: { icon?: LucideIcon; label: string; value: string; danger?: boolean }) {
   return (
     <div className="flex justify-between gap-4 border-b pb-2">
-      <span className={danger ? "text-red-600" : "text-muted-foreground"}>{label}</span>
+      <span className={`flex items-center gap-1.5 ${danger ? "text-red-600" : "text-muted-foreground"}`}>
+        {Icon ? <Icon className="h-3.5 w-3.5 shrink-0" /> : null}
+        {label}
+      </span>
       <span className={`text-right font-medium ${danger ? "text-red-600" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function SectionHeader({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <Icon className="h-4 w-4" />
+      {label}
     </div>
   );
 }

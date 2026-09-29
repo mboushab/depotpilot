@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Bell, CalendarClock, Car, FileText, LayoutDashboard, LogOut, Menu, Settings, Users, Warehouse, X } from "lucide-react";
 import { logoutAction } from "@/server/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -20,24 +21,30 @@ const nav = [
 ];
 
 function NavLinks({ unreadNotifications, onNavigate }: { unreadNotifications: number; onNavigate?: () => void }) {
+  const pathname = usePathname();
   return (
     <nav className="mt-8 space-y-1">
-      {nav.map((item) => (
-        <Link
-          href={item.href}
-          key={item.href}
-          onClick={onNavigate}
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <item.icon className="h-4 w-4" />
-          {item.label}
-          {item.href === "/notifications" && unreadNotifications > 0 ? (
-            <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-xs font-semibold text-white">
-              {unreadNotifications}
-            </span>
-          ) : null}
-        </Link>
-      ))}
+      {nav.map((item) => {
+        const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+        return (
+          <Link
+            href={item.href}
+            key={item.href}
+            onClick={onNavigate}
+            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
+              active ? "bg-primary/10 font-semibold text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <item.icon className="h-4 w-4" />
+            {item.label}
+            {item.href === "/notifications" && unreadNotifications > 0 ? (
+              <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-xs font-semibold text-white">
+                {unreadNotifications}
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
     </nav>
   );
 }
