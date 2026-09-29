@@ -197,11 +197,6 @@ export function BoxPlan({
               </button>
             </div>
           </div>
-          {!isCurrentMonth ? (
-            <p className="mb-3 text-xs text-muted-foreground">
-              Vue simulée pour {format(monthCursor, "MMMM yyyy", { locale: fr })} — une location mensuelle sans date de sortie est considérée occupée pour tout le mois.
-            </p>
-          ) : null}
           <div className="mb-4 flex flex-wrap gap-2">
             <button
               type="button"
