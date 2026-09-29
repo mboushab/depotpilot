@@ -146,56 +146,54 @@ export function BoxPlan({
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="rounded-lg border bg-card p-4 shadow-panel">
           <h2 className="mb-3 text-base font-semibold">Plan des box</h2>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => goToMonth(subMonths(monthCursor, 1))}
-                className="grid h-8 w-8 place-items-center rounded-md border hover:bg-muted"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-md border hover:bg-muted"
                 aria-label="Mois précédent"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="min-w-48 text-sm font-semibold capitalize">{format(monthCursor, "MMMM yyyy", { locale: fr })}</span>
+              <span className="text-sm font-semibold capitalize">{format(monthCursor, "MMMM yyyy", { locale: fr })}</span>
               <button
                 type="button"
                 onClick={() => goToMonth(addMonths(monthCursor, 1))}
-                className="grid h-8 w-8 place-items-center rounded-md border hover:bg-muted"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-md border hover:bg-muted"
                 aria-label="Mois suivant"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                {(isCurrentMonth
-                  ? [
-                      { label: "Libre", dot: "bg-amber-400" },
-                      { label: "Occupé", dot: "bg-emerald-400" },
-                      { label: "Réservé", dot: "bg-violet-500" },
-                      { label: "Sortie proche", dot: "bg-orange-500" },
-                      { label: "Impayé", dot: "bg-rose-400" }
-                    ]
-                  : [
-                      { label: "Disponible", dot: "bg-amber-400" },
-                      { label: "Occupé", dot: "bg-emerald-400" }
-                    ]
-                ).map(({ label, dot }) => (
-                  <span key={label} className="flex items-center gap-1.5">
-                    <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
-                    {label}
-                  </span>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => goToMonth(new Date())}
-                disabled={isCurrentMonth}
-                className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
-              >
-                Aujourd&apos;hui
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => goToMonth(new Date())}
+              disabled={isCurrentMonth}
+              className="shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+            >
+              Aujourd&apos;hui
+            </button>
+          </div>
+          <div className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            {(isCurrentMonth
+              ? [
+                  { label: "Libre", dot: "bg-amber-400" },
+                  { label: "Occupé", dot: "bg-emerald-400" },
+                  { label: "Réservé", dot: "bg-violet-500" },
+                  { label: "Sortie proche", dot: "bg-orange-500" },
+                  { label: "Impayé", dot: "bg-rose-400" }
+                ]
+              : [
+                  { label: "Disponible", dot: "bg-amber-400" },
+                  { label: "Occupé", dot: "bg-emerald-400" }
+                ]
+            ).map(({ label, dot }) => (
+              <span key={label} className="flex items-center gap-1.5">
+                <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+                {label}
+              </span>
+            ))}
           </div>
           <div className="mb-4 flex flex-wrap gap-2">
             <button
