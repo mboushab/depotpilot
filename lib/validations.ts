@@ -33,8 +33,8 @@ export const unitSchema = z.object({
 
 export const rentalSchema = z
   .object({
-    occupantId: z.string().min(1),
-    unitId: z.string().min(1),
+    occupantId: z.string().min(1, "Sélectionnez un client"),
+    unitId: z.string().min(1, "Sélectionnez un box"),
     type: z.enum(["MONTHLY", "ONE_TIME"]).default("MONTHLY"),
     startDate: z.coerce.date(),
     durationDays: z.coerce.number().int().min(1).max(3650).optional(),
@@ -54,14 +54,14 @@ export const rentalSchema = z
   });
 
 export const paymentSchema = z.object({
-  invoiceId: z.string().min(1),
+  invoiceId: z.string().min(1, "Sélectionnez une facture"),
   amountCents: z.coerce.number().int().positive().max(1000000),
   method: z.enum(["CASH", "CARD", "BANK_TRANSFER", "DIRECT_DEBIT"]),
   reference: z.string().max(120).optional().or(z.literal(""))
 });
 
 export const parkingAssignmentSchema = z.object({
-  occupantId: z.string().min(1),
+  occupantId: z.string().min(1, "Sélectionnez un client"),
   vehiclePlate: z.string().min(2, "Plaque requise").max(20),
   startDate: z.coerce.date()
 });
