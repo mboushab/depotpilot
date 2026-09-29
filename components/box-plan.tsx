@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useActionState } from "react";
-import { Euro, LogOut, Download, Pencil, Check, X } from "lucide-react";
-import { format } from "date-fns";
+import { Euro, LogOut, Download, Pencil, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { addMonths, endOfMonth, format, isSameMonth, startOfMonth, subMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import { RentBoxDialog } from "@/components/box/rent-box-dialog";
 import { WhatsAppInvoiceButton } from "@/components/invoices/whatsapp-invoice-button";
-import { PeriodAvailabilityDialog } from "@/components/boxes/period-availability-dialog";
 import {
   extendRentalAction,
   releaseRentalAction,
@@ -76,6 +75,29 @@ export function BoxPlan({
   const [selectedId, setSelectedId] = useState(boxes[0]?.id);
   const selected = useMemo(() => boxes.find((box) => box.id === selectedId) ?? boxes[0], [boxes, selectedId]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [monthCursor, setMonthCursor] = useState(() => new Date());
+  const isCurrentMonth = isSameMonth(monthCursor, new Date());
+
+  function goToMonth(next: Date) {
+    setStatusFilter(null);
+    setMonthCursor(next);
+  }
+
+  // Away from the current month, "occupied" is derived from each box's
+  // active rental dates instead of its live status — a rental with no end
+  // date (the common monthly case) is treated as occupying every future
+  // month until it's actually ended.
+  const periodBoxes = useMemo(() => {
+    const periodStart = startOfMonth(monthCursor);
+    const periodEnd = endOfMonth(monthCursor);
+    return boxes.map((box) => {
+      const rental = box.activeRental;
+      const occupied = !!rental && new Date(rental.startDate) <= periodEnd && (!rental.endDate || new Date(rental.endDate) >= periodStart);
+      const untilLabel = occupied ? (rental?.endDate ? `Jusqu'au ${format(new Date(rental.endDate), "dd/MM/yyyy")}` : "Durée indéterminée") : "";
+      return { box, occupied, untilLabel };
+    });
+  }, [boxes, monthCursor]);
+
   const stats = {
     free: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Libre").length,
     // "Loués/Payés" (top metric) is deliberately the narrow, fully-settled
@@ -89,18 +111,29 @@ export function BoxPlan({
     exitClose: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Sortie proche").length,
     reserved: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Réservé").length
   };
-  const filterOptions = [
-    { label: "Libre", count: stats.free },
-    { label: "Occupé", count: stats.occupiedTotal },
-    { label: "Réservé", count: stats.reserved },
-    { label: "Sortie proche", count: stats.exitClose },
-    { label: "Impayé", count: stats.unpaid }
-  ];
+  const periodAvailableCount = periodBoxes.filter((entry) => !entry.occupied).length;
+  const periodOccupiedCount = periodBoxes.filter((entry) => entry.occupied).length;
+
+  const filterOptions = isCurrentMonth
+    ? [
+        { label: "Libre", count: stats.free },
+        { label: "Occupé", count: stats.occupiedTotal },
+        { label: "Réservé", count: stats.reserved },
+        { label: "Sortie proche", count: stats.exitClose },
+        { label: "Impayé", count: stats.unpaid }
+      ]
+    : [
+        { label: "Disponible", count: periodAvailableCount },
+        { label: "Occupé", count: periodOccupiedCount }
+      ];
   const visibleBoxes = statusFilter
-    ? statusFilter === "Occupé"
+    ? statusFilter === "Occupé" && isCurrentMonth
       ? boxes.filter((box) => box.status === "OCCUPIED")
       : boxes.filter((box) => getBoxSignal(box, leadDays).label === statusFilter)
     : boxes;
+  const visiblePeriodBoxes = statusFilter
+    ? periodBoxes.filter((entry) => (statusFilter === "Disponible" ? !entry.occupied : entry.occupied))
+    : periodBoxes;
 
   return (
     <div className="space-y-4">
@@ -112,87 +145,134 @@ export function BoxPlan({
       </div>
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="rounded-lg border bg-card p-4 shadow-panel">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Plan des box</h2>
-            <div className="flex flex-wrap items-center gap-3">
-              <PeriodAvailabilityDialog
-                boxes={boxes.map((box) => ({
-                  code: box.code,
-                  activeRental: box.activeRental
-                    ? {
-                        type: box.activeRental.type,
-                        startDate: box.activeRental.startDate,
-                        endDate: box.activeRental.endDate,
-                        occupantName: box.activeRental.occupantName
-                      }
-                    : undefined
-                }))}
-              />
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter(null)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
-                >
-                  Tous
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => goToMonth(subMonths(monthCursor, 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border hover:bg-muted"
+                aria-label="Mois précédent"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-[130px] text-center text-sm font-semibold capitalize">
+                {isCurrentMonth ? "Aujourd'hui" : format(monthCursor, "MMMM yyyy", { locale: fr })}
+              </span>
+              <button
+                type="button"
+                onClick={() => goToMonth(addMonths(monthCursor, 1))}
+                className="grid h-8 w-8 place-items-center rounded-md border hover:bg-muted"
+                aria-label="Mois suivant"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              {!isCurrentMonth ? (
+                <button type="button" onClick={() => goToMonth(new Date())} className="text-xs font-semibold text-primary underline">
+                  Revenir à aujourd&apos;hui
                 </button>
-                {filterOptions.map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    onClick={() => setStatusFilter(statusFilter === option.label ? null : option.label)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === option.label ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
-                  >
-                    {option.label} ({option.count})
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                {[
-                  { label: "Libre", dot: "bg-amber-400" },
-                  { label: "Occupé", dot: "bg-emerald-400" },
-                  { label: "Réservé", dot: "bg-violet-500" },
-                  { label: "Sortie proche", dot: "bg-orange-500" },
-                  { label: "Impayé", dot: "bg-rose-400" }
-                ].map(({ label, dot }) => (
-                  <span key={label} className="flex items-center gap-1.5">
-                    <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
-                    {label}
-                  </span>
-                ))}
-              </div>
+              ) : null}
             </div>
           </div>
-          {visibleBoxes.length === 0 ? (
+          {!isCurrentMonth ? (
+            <p className="mb-3 text-xs text-muted-foreground">
+              Vue simulée pour {format(monthCursor, "MMMM yyyy", { locale: fr })} — une location mensuelle sans date de sortie est considérée occupée pour tout le mois.
+            </p>
+          ) : null}
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setStatusFilter(null)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === null ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
+              >
+                Tous
+              </button>
+              {filterOptions.map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => setStatusFilter(statusFilter === option.label ? null : option.label)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${statusFilter === option.label ? "bg-slate-900 text-white" : "border bg-card text-slate-700 dark:text-slate-300 hover:bg-muted"}`}
+                >
+                  {option.label} ({option.count})
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              {(isCurrentMonth
+                ? [
+                    { label: "Libre", dot: "bg-amber-400" },
+                    { label: "Occupé", dot: "bg-emerald-400" },
+                    { label: "Réservé", dot: "bg-violet-500" },
+                    { label: "Sortie proche", dot: "bg-orange-500" },
+                    { label: "Impayé", dot: "bg-rose-400" }
+                  ]
+                : [
+                    { label: "Disponible", dot: "bg-amber-400" },
+                    { label: "Occupé", dot: "bg-emerald-400" }
+                  ]
+              ).map(({ label, dot }) => (
+                <span key={label} className="flex items-center gap-1.5">
+                  <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+          {isCurrentMonth ? (
+            visibleBoxes.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Aucun box ne correspond à ce filtre.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+                {visibleBoxes.map((box) => {
+                  const signal = getBoxSignal(box, leadDays);
+                  return (
+                    <button
+                      key={box.id}
+                      type="button"
+                      onClick={() => setSelectedId(box.id)}
+                      className={`min-h-28 rounded-md border-2 p-3 text-left transition hover:scale-[1.01] ${signal.className} ${selected?.id === box.id ? "ring-[3px] ring-slate-900 ring-offset-2" : ""}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">{box.code}</span>
+                        {signal.label === "Impayé" ? <Euro className="h-4 w-4" /> : null}
+                        {signal.label === "Sortie proche" ? <LogOut className="h-4 w-4" /> : null}
+                      </div>
+                      <p className="mt-5 text-sm font-medium">{box.activeRental?.occupantName ?? signal.label}</p>
+                      <p className="mt-2 text-xs opacity-80">
+                        {signal.label === "Libre"
+                          ? `À partir de ${formatCurrency(box.monthlyRateCents)}`
+                          : signal.label === "Réservé"
+                            ? `Payé : ${formatCurrency(box.activeRental?.invoices.reduce((sum, invoice) => sum + invoice.paidCents, 0) ?? 0)}`
+                            : signal.label}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : visiblePeriodBoxes.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Aucun box ne correspond à ce filtre.</p>
           ) : (
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-            {visibleBoxes.map((box) => {
-              const signal = getBoxSignal(box, leadDays);
-              return (
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+              {visiblePeriodBoxes.map(({ box, occupied, untilLabel }) => (
                 <button
                   key={box.id}
                   type="button"
                   onClick={() => setSelectedId(box.id)}
-                  className={`min-h-28 rounded-md border-2 p-3 text-left transition hover:scale-[1.01] ${signal.className} ${selected?.id === box.id ? "ring-[3px] ring-slate-900 ring-offset-2" : ""}`}
+                  className={`min-h-28 rounded-md border-2 p-3 text-left transition hover:scale-[1.01] ${
+                    occupied
+                      ? "border-emerald-400 bg-emerald-400/15 text-emerald-700 dark:text-emerald-300"
+                      : "border-amber-400 bg-amber-400/15 text-amber-700 dark:text-amber-300"
+                  } ${selected?.id === box.id ? "ring-[3px] ring-slate-900 ring-offset-2" : ""}`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">{box.code}</span>
-                    {signal.label === "Impayé" ? <Euro className="h-4 w-4" /> : null}
-                    {signal.label === "Sortie proche" ? <LogOut className="h-4 w-4" /> : null}
-                  </div>
-                  <p className="mt-5 text-sm font-medium">{box.activeRental?.occupantName ?? signal.label}</p>
-                  <p className="mt-2 text-xs opacity-80">
-                    {signal.label === "Libre"
-                      ? `À partir de ${formatCurrency(box.monthlyRateCents)}`
-                      : signal.label === "Réservé"
-                        ? `Payé : ${formatCurrency(box.activeRental?.invoices.reduce((sum, invoice) => sum + invoice.paidCents, 0) ?? 0)}`
-                        : signal.label}
-                  </p>
+                  <span className="font-semibold">{box.code}</span>
+                  <p className="mt-5 text-sm font-medium">{occupied ? box.activeRental?.occupantName : "Disponible"}</p>
+                  <p className="mt-2 text-xs opacity-80">{occupied ? untilLabel : `À partir de ${formatCurrency(box.monthlyRateCents)}`}</p>
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
           )}
         </div>
         {selected ? (
