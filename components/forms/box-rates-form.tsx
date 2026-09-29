@@ -15,8 +15,6 @@ export function BoxRatesForm({ units }: { units: Unit[] }) {
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Tarifs mis à jour.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
     }
   }, [state]);
 
@@ -27,6 +25,7 @@ export function BoxRatesForm({ units }: { units: Unit[] }) {
           <BoxRateField key={unit.id} unit={unit} />
         ))}
       </div>
+      {state.status === "error" ? <p className="text-sm font-medium text-destructive">{state.message}</p> : null}
       <Button disabled={isPending}>{isPending ? "Enregistrement…" : "Enregistrer les tarifs"}</Button>
     </form>
   );

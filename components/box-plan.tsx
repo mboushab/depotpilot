@@ -345,9 +345,12 @@ function BoxDetails({
   useEffect(() => {
     if (paymentState.status === "success") {
       toast.success("Paiement confirmé.");
-    } else if (paymentState.status === "error") {
-      toast.error(paymentState.message);
+      // Only known once the server action resolves — cannot close synchronously at click time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setConfirmPaymentOpen(false);
     }
+    // On error the confirm overlay stays open and shows the message inline
+    // (below) so the admin can see what went wrong and retry.
   }, [paymentState]);
 
   const isUnpaid = !!box.activeRental && box.status !== "RESERVED" && balance > 0;
@@ -474,7 +477,7 @@ function BoxDetails({
         defaultDepositCents={defaultDepositCents}
       />
       {confirmPaymentOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmPaymentOpen(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => (isConfirmingPayment ? null : setConfirmPaymentOpen(false))}>
           <div className="w-full max-w-sm rounded-lg border bg-card p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-base font-semibold">Confirmer le paiement de ce box</h3>
             <p className="mt-1 text-sm text-muted-foreground">Solde restant : {formatCurrency(balance)}</p>
@@ -493,15 +496,15 @@ function BoxDetails({
                 }}
               />
             </div>
+            {paymentState.status === "error" ? (
+              <p className="mt-3 text-sm font-medium text-destructive">{paymentState.message}</p>
+            ) : null}
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirmPaymentOpen(false)}>Annuler</Button>
-              <Button
-                onClick={() => {
-                  setConfirmPaymentOpen(false);
-                  paymentFormRef.current?.requestSubmit();
-                }}
-              >
-                Confirmer
+              <Button variant="outline" disabled={isConfirmingPayment} onClick={() => setConfirmPaymentOpen(false)}>
+                Annuler
+              </Button>
+              <Button disabled={isConfirmingPayment} onClick={() => paymentFormRef.current?.requestSubmit()}>
+                {isConfirmingPayment ? "Confirmation…" : "Confirmer"}
               </Button>
             </div>
           </div>
@@ -518,8 +521,6 @@ function ExtendExitForm({ rentalId, currentEndDate, onDone }: { rentalId: string
     if (state.status === "success") {
       toast.success("Date de sortie mise à jour.");
       onDone();
-    } else if (state.status === "error") {
-      toast.error(state.message);
     }
   }, [state, onDone]);
 
@@ -528,6 +529,7 @@ function ExtendExitForm({ rentalId, currentEndDate, onDone }: { rentalId: string
       <input type="hidden" name="rentalId" value={rentalId} />
       <Label>Nouvelle date de sortie</Label>
       <Input type="date" name="endDate" defaultValue={currentEndDate ? currentEndDate.slice(0, 10) : ""} />
+      {state.status === "error" ? <p className="text-sm font-medium text-destructive">{state.message}</p> : null}
       <div className="flex gap-2 pt-1">
         <Button type="button" variant="outline" className="flex-1" onClick={onDone}>Annuler</Button>
         <Button type="submit" className="flex-1" disabled={isPending}>{isPending ? "Enregistrement…" : "Enregistrer"}</Button>
@@ -544,9 +546,11 @@ function ReleaseBoxButton({ rentalId }: { rentalId: string }) {
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Box libéré.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
+      // Only known once the server action resolves — cannot close synchronously at click time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setConfirmOpen(false);
     }
+    // On error the dialog stays open with the message shown inline below.
   }, [state]);
 
   return (
@@ -568,10 +572,9 @@ function ReleaseBoxButton({ rentalId }: { rentalId: string }) {
         title="Libérer ce box ?"
         description="La location sera clôturée et le box redeviendra disponible."
         confirmLabel="Libérer"
-        onConfirm={() => {
-          setConfirmOpen(false);
-          formRef.current?.requestSubmit();
-        }}
+        pending={isPending}
+        errorMessage={state.status === "error" ? state.message : undefined}
+        onConfirm={() => formRef.current?.requestSubmit()}
         onCancel={() => setConfirmOpen(false)}
       />
     </>
@@ -638,9 +641,11 @@ function StatusRow({ rentalId, label, value }: { rentalId: string; label: string
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Statut mis à jour.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
+      // Only known once the server action resolves — cannot close synchronously at click time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setConfirmOpen(false);
     }
+    // On error the dialog stays open with the message shown inline below.
   }, [state]);
 
   return (
@@ -648,7 +653,7 @@ function StatusRow({ rentalId, label, value }: { rentalId: string; label: string
       <span className="text-muted-foreground">{label}</span>
       <span className="flex items-center gap-2 text-right font-medium">
         {value}
-        <form ref={formRef} action={formAction} onSubmit={() => setConfirmOpen(false)}>
+        <form ref={formRef} action={formAction}>
           <input type="hidden" name="rentalId" value={rentalId} />
           <button
             type="button"
@@ -665,6 +670,8 @@ function StatusRow({ rentalId, label, value }: { rentalId: string; label: string
         title="Marquer ce box comme impayé ?"
         description="Le paiement enregistré sur ce box sera annulé."
         confirmLabel="Marquer comme impayé"
+        pending={isPending}
+        errorMessage={state.status === "error" ? state.message : undefined}
         onConfirm={() => formRef.current?.requestSubmit()}
         onCancel={() => setConfirmOpen(false)}
       />
@@ -681,44 +688,44 @@ function RentRow({ rentalId, label, valueCents, suffix }: { rentalId: string; la
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Prix mis à jour.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
+      // Only known once the server action resolves — cannot close synchronously at click time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEditing(false);
     }
+    // On error stay in edit mode and show the message inline below.
   }, [state]);
 
   if (editing) {
     return (
-      <form
-        ref={formRef}
-        action={formAction}
-        onSubmit={() => setEditing(false)}
-        className="flex items-center justify-between gap-2 border-b pb-2"
-      >
-        <input type="hidden" name="rentalId" value={rentalId} />
-        <span className="text-muted-foreground">{label}</span>
-        <div className="flex items-center gap-1">
-          <Input
-            type="number"
-            step="0.01"
-            min="0.01"
-            defaultValue={(valueCents / 100).toFixed(2)}
-            className="h-8 w-24 text-right"
-            autoFocus
-            onChange={(event) => {
-              if (amountCentsRef.current) {
-                amountCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
-              }
-            }}
-          />
-          <input type="hidden" name="monthlyRateCents" ref={amountCentsRef} defaultValue={valueCents} />
-          <button type="submit" disabled={isPending} className="grid h-7 w-7 shrink-0 place-items-center rounded hover:bg-muted" aria-label="Enregistrer">
-            <Check className="h-3.5 w-3.5 text-emerald-600" />
-          </button>
-          <button type="button" onClick={() => setEditing(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded hover:bg-muted" aria-label="Annuler">
-            <X className="h-3.5 w-3.5 text-muted-foreground" />
-          </button>
-        </div>
-      </form>
+      <div className="space-y-1.5 border-b pb-2">
+        <form ref={formRef} action={formAction} className="flex items-center justify-between gap-2">
+          <input type="hidden" name="rentalId" value={rentalId} />
+          <span className="text-muted-foreground">{label}</span>
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              step="0.01"
+              min="0.01"
+              defaultValue={(valueCents / 100).toFixed(2)}
+              className="h-8 w-24 text-right"
+              autoFocus
+              onChange={(event) => {
+                if (amountCentsRef.current) {
+                  amountCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
+                }
+              }}
+            />
+            <input type="hidden" name="monthlyRateCents" ref={amountCentsRef} defaultValue={valueCents} />
+            <button type="submit" disabled={isPending} className="grid h-7 w-7 shrink-0 place-items-center rounded hover:bg-muted" aria-label="Enregistrer">
+              <Check className="h-3.5 w-3.5 text-emerald-600" />
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded hover:bg-muted" aria-label="Annuler">
+              <X className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          </div>
+        </form>
+        {state.status === "error" ? <p className="text-right text-xs font-medium text-destructive">{state.message}</p> : null}
+      </div>
     );
   }
 

@@ -379,8 +379,6 @@ function EditAppointmentForm({ appointment, onSuccess, onCancel }: { appointment
     if (state.status === "success") {
       toast.success("Chargement modifié.");
       onSuccess();
-    } else if (state.status === "error") {
-      toast.error(state.message);
     }
   }, [state, onSuccess]);
 
@@ -422,6 +420,7 @@ function EditAppointmentForm({ appointment, onSuccess, onCancel }: { appointment
           <option value="DAYS">Jours</option>
         </select>
       </div>
+      {state.status === "error" ? <p className="text-xs font-medium text-destructive">{state.message}</p> : null}
       <div className="flex gap-2 pt-1">
         <Button type="button" variant="outline" size="sm" className="flex-1" onClick={onCancel}>
           Annuler
@@ -443,9 +442,11 @@ function DeleteAppointmentButton({ id, onSuccess }: { id: string; onSuccess: () 
     if (state.status === "success") {
       toast.success("Chargement supprimé.");
       onSuccess();
-    } else if (state.status === "error") {
-      toast.error(state.message);
+      // Only known once the server action resolves — cannot close synchronously at click time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setConfirmOpen(false);
     }
+    // On error the dialog stays open with the message shown inline below.
   }, [state, onSuccess]);
 
   return (
@@ -468,10 +469,9 @@ function DeleteAppointmentButton({ id, onSuccess }: { id: string; onSuccess: () 
         title="Supprimer ce chargement ?"
         description="Cette action est définitive et ne peut pas être annulée."
         confirmLabel="Supprimer"
-        onConfirm={() => {
-          setConfirmOpen(false);
-          formRef.current?.requestSubmit();
-        }}
+        pending={isPending}
+        errorMessage={state.status === "error" ? state.message : undefined}
+        onConfirm={() => formRef.current?.requestSubmit()}
         onCancel={() => setConfirmOpen(false)}
       />
     </>

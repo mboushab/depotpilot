@@ -24,7 +24,6 @@ export function LoadingForm({ onSuccess }: { onSuccess?: () => void }) {
       formRef.current?.reset();
       onSuccess?.();
     } else if (state.status === "error") {
-      toast.error(state.message);
       // React resets uncontrolled form fields after any action call that doesn't throw,
       // regardless of the returned status, so restore what the user typed.
       const form = formRef.current;
@@ -75,6 +74,9 @@ export function LoadingForm({ onSuccess }: { onSuccess?: () => void }) {
           <option value="DAYS">Jours</option>
         </select>
       </Field>
+      {state.status === "error" ? (
+        <p className="text-sm font-medium text-destructive md:col-span-3">{state.message}</p>
+      ) : null}
       <div className="md:col-span-3"><Button disabled={isPending}>{isPending ? "Programmation…" : "Programmer"}</Button></div>
     </form>
   );

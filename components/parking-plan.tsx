@@ -121,9 +121,11 @@ function ReleaseParkingButton({ assignmentId }: { assignmentId: string }) {
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Sortie enregistrée.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
+      // Only known once the server action resolves — cannot close synchronously at click time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setConfirmOpen(false);
     }
+    // On error the dialog stays open with the message shown inline below.
   }, [state]);
 
   return (
@@ -144,10 +146,9 @@ function ReleaseParkingButton({ assignmentId }: { assignmentId: string }) {
         title="Signaler la sortie de ce véhicule ?"
         description="Le stationnement sera clôturé et la place redeviendra disponible."
         confirmLabel="Confirmer la sortie"
-        onConfirm={() => {
-          setConfirmOpen(false);
-          formRef.current?.requestSubmit();
-        }}
+        pending={isPending}
+        errorMessage={state.status === "error" ? state.message : undefined}
+        onConfirm={() => formRef.current?.requestSubmit()}
         onCancel={() => setConfirmOpen(false)}
       />
     </>

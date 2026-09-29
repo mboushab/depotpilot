@@ -20,8 +20,6 @@ export function UnitForm({ suggestedCode, onSuccess }: { suggestedCode?: string;
       toast.success("Box créé.");
       formRef.current?.reset();
       onSuccess?.();
-    } else if (state.status === "error") {
-      toast.error(state.message);
     }
   }, [state, onSuccess]);
 
@@ -38,6 +36,9 @@ export function UnitForm({ suggestedCode, onSuccess }: { suggestedCode?: string;
         <input type="hidden" {...form.register("monthlyRateCents")} />
       </Field>
       <Field label="Surface m2"><Input type="number" step="0.1" {...form.register("surfaceM2")} /></Field>
+      {state.status === "error" ? (
+        <p className="text-sm font-medium text-destructive md:col-span-3">{state.message}</p>
+      ) : null}
       <div className="md:col-span-3">
         <Button disabled={isPending}>{isPending ? "Création…" : "Créer le box"}</Button>
       </div>

@@ -15,9 +15,11 @@ export function DeleteClientButton({ id, name }: { id: string; name: string }) {
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Client supprimé.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
+      // Only known once the server action resolves — cannot close synchronously at click time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setConfirmOpen(false);
     }
+    // On error the dialog stays open with the message shown inline below.
   }, [state]);
 
   return (
@@ -41,10 +43,9 @@ export function DeleteClientButton({ id, name }: { id: string; name: string }) {
         title={`Supprimer ${name} ?`}
         description="Son historique (locations, factures, paiements, stationnements) sera aussi supprimé définitivement. Cette action ne peut pas être annulée."
         confirmLabel="Supprimer"
-        onConfirm={() => {
-          setConfirmOpen(false);
-          formRef.current?.requestSubmit();
-        }}
+        pending={isPending}
+        errorMessage={state.status === "error" ? state.message : undefined}
+        onConfirm={() => formRef.current?.requestSubmit()}
         onCancel={() => setConfirmOpen(false)}
       />
     </>

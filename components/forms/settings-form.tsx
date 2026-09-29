@@ -16,8 +16,6 @@ export function SettingsForm({ defaults }: { defaults: SettingsInput }) {
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Paramètres enregistrés.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
     }
   }, [state]);
 
@@ -57,6 +55,9 @@ export function SettingsForm({ defaults }: { defaults: SettingsInput }) {
         />
         <input type="hidden" name="defaultDepositCents" ref={depositCentsRef} defaultValue={defaults.defaultDepositCents} />
       </Field>
+      {state.status === "error" ? (
+        <p className="text-sm font-medium text-destructive md:col-span-3">{state.message}</p>
+      ) : null}
       <div className="md:col-span-3"><Button disabled={isPending}>{isPending ? "Enregistrement…" : "Enregistrer les paramètres"}</Button></div>
     </form>
   );

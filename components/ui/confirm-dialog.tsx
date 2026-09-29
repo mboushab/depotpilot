@@ -12,7 +12,9 @@ export function ConfirmDialog({
   confirmLabel = "Confirmer",
   cancelLabel = "Annuler",
   onConfirm,
-  onCancel
+  onCancel,
+  pending = false,
+  errorMessage
 }: {
   open: boolean;
   title: string;
@@ -21,6 +23,11 @@ export function ConfirmDialog({
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  // A dialog that submits a server action should stay open (and disable the
+  // confirm button) while it's pending, and stay open with the error shown
+  // if it fails — never close as soon as the button is clicked.
+  pending?: boolean;
+  errorMessage?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -56,11 +63,12 @@ export function ConfirmDialog({
           <div className="pt-1">
             <h3 className="text-base font-semibold">{title}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            {errorMessage ? <p className="mt-2 text-sm font-medium text-destructive">{errorMessage}</p> : null}
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>{cancelLabel}</Button>
-          <Button variant="destructive" onClick={onConfirm}>{confirmLabel}</Button>
+          <Button variant="outline" onClick={onCancel} disabled={pending}>{cancelLabel}</Button>
+          <Button variant="destructive" onClick={onConfirm} disabled={pending}>{pending ? "…" : confirmLabel}</Button>
         </div>
       </div>
     </div>

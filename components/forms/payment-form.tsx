@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useActionState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createPaymentAction } from "@/server/actions/forms";
+import { createPaymentAction, type CreatePaymentState } from "@/server/actions/forms";
 import { paymentSchema, type PaymentInput } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,12 @@ import { Label } from "@/components/ui/label";
 type InvoiceOption = { id: string; label: string; remainingCents: number };
 
 export function PaymentForm({ invoices }: { invoices: InvoiceOption[] }) {
+  const [state, formAction, isPending] = useActionState(createPaymentAction, { status: "idle" } as CreatePaymentState);
   const form = useForm<PaymentInput>({ resolver: zodResolver(paymentSchema) });
   const amountEurosRef = useRef<HTMLInputElement>(null);
   const amountCentsRef = useRef<HTMLInputElement>(null);
   return (
-    <form action={createPaymentAction} className="grid gap-4 md:grid-cols-4">
+    <form action={formAction} className="grid gap-4 md:grid-cols-4">
       <div className="space-y-2 md:col-span-2">
         <Label>Facture</Label>
         <select
@@ -62,8 +63,11 @@ export function PaymentForm({ invoices }: { invoices: InvoiceOption[] }) {
         <Label>Référence</Label>
         <Input {...form.register("reference")} />
       </div>
+      {state.status === "error" ? (
+        <p className="text-sm font-medium text-destructive md:col-span-4">{state.message}</p>
+      ) : null}
       <div className="flex items-end">
-        <Button>Enregistrer</Button>
+        <Button disabled={isPending}>{isPending ? "Enregistrement…" : "Enregistrer"}</Button>
       </div>
     </form>
   );

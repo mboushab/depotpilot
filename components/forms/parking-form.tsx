@@ -35,7 +35,6 @@ export function ParkingForm({ occupants, onSuccess }: { occupants: Option[]; onS
       formRef.current?.reset();
       onSuccess?.();
     } else if (state.status === "error") {
-      toast.error(state.message);
       const form = formRef.current;
       const submitted = lastSubmission.current;
       if (form && submitted) {
@@ -77,6 +76,9 @@ export function ParkingForm({ occupants, onSuccess }: { occupants: Option[]; onS
       </Field>
       <Field label="Plaque"><Input name="vehiclePlate" placeholder="AB-123-CD" required /></Field>
       <Field label="Début"><Input type="date" name="startDate" defaultValue={today} required /></Field>
+      {state.status === "error" ? (
+        <p className="text-sm font-medium text-destructive md:col-span-3">{state.message}</p>
+      ) : null}
       <div className="md:col-span-3"><Button disabled={isPending}>{isPending ? "Ajout…" : "Ajouter la voiture"}</Button></div>
     </form>
   );

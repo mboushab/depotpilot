@@ -18,9 +18,11 @@ export function ConfirmClientPaymentButton({ occupantId, name, balanceCents }: {
   useEffect(() => {
     if (state.status === "success") {
       toast.success("Paiement confirmé.");
-    } else if (state.status === "error") {
-      toast.error(state.message);
+      // Only known once the server action resolves — cannot close synchronously at click time.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false);
     }
+    // On error the overlay stays open with the message shown inline below.
   }, [state]);
 
   return (
@@ -40,7 +42,7 @@ export function ConfirmClientPaymentButton({ occupantId, name, balanceCents }: {
         </Button>
       </form>
       {open ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => (isPending ? null : setOpen(false))}>
           <div className="w-full max-w-sm rounded-lg border bg-card p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <h3 className="text-base font-semibold">Confirmer le paiement de {name}</h3>
             <p className="mt-1 text-sm text-red-600">Solde restant : {formatCurrency(balanceCents)}</p>
@@ -59,15 +61,13 @@ export function ConfirmClientPaymentButton({ occupantId, name, balanceCents }: {
                 }}
               />
             </div>
+            {state.status === "error" ? <p className="mt-3 text-sm font-medium text-destructive">{state.message}</p> : null}
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
-              <Button
-                onClick={() => {
-                  setOpen(false);
-                  formRef.current?.requestSubmit();
-                }}
-              >
-                Confirmer
+              <Button variant="outline" disabled={isPending} onClick={() => setOpen(false)}>
+                Annuler
+              </Button>
+              <Button disabled={isPending} onClick={() => formRef.current?.requestSubmit()}>
+                {isPending ? "Confirmation…" : "Confirmer"}
               </Button>
             </div>
           </div>

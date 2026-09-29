@@ -481,9 +481,15 @@ export async function confirmClientPaymentAction(
   return { status: "success" };
 }
 
-export async function createPaymentAction(formData: FormData) {
+export type CreatePaymentState = { status: "idle" } | { status: "error"; message: string };
+
+export async function createPaymentAction(_prevState: CreatePaymentState, formData: FormData): Promise<CreatePaymentState> {
   await requireAdmin();
-  const data = paymentSchema.parse(Object.fromEntries(formData));
+  const parsed = paymentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
+  }
+  const data = parsed.data;
   const invoice = await prisma.invoice.findUniqueOrThrow({ where: { id: data.invoiceId } });
   const paidCents = invoice.paidCents + data.amountCents;
   const status = deriveInvoiceStatus(invoice.totalCents, paidCents, invoice.dueDate);

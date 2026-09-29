@@ -24,8 +24,6 @@ export function ClientForm({ onSuccess }: { onSuccess?: (client: CreatedClient) 
       if (submitted) {
         onSuccess?.({ id: state.occupantId, label: `${submitted.firstName} ${submitted.lastName}`, phone: submitted.phone });
       }
-    } else if (state.status === "error") {
-      toast.error(state.message);
     }
   }, [state, onSuccess]);
 
@@ -66,6 +64,9 @@ export function ClientForm({ onSuccess }: { onSuccess?: (client: CreatedClient) 
       <Field label="Ville"><Input name="city" /></Field>
       <Field label="Code postal"><Input name="postalCode" /></Field>
       <input type="hidden" name="country" value="FR" />
+      {state.status === "error" ? (
+        <p className="text-sm font-medium text-destructive md:col-span-2">{state.message}</p>
+      ) : null}
       <div className="md:col-span-2">
         <Button disabled={isPending}>{isPending ? "Création…" : "Créer le client"}</Button>
       </div>
