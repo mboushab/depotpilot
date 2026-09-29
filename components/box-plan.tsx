@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import { RentBoxDialog } from "@/components/box/rent-box-dialog";
 import { WhatsAppInvoiceButton } from "@/components/invoices/whatsapp-invoice-button";
+import { PeriodAvailabilityDialog } from "@/components/boxes/period-availability-dialog";
 import {
   extendRentalAction,
   releaseRentalAction,
@@ -114,6 +115,19 @@ export function BoxPlan({
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Plan des box</h2>
             <div className="flex flex-wrap items-center gap-3">
+              <PeriodAvailabilityDialog
+                boxes={boxes.map((box) => ({
+                  code: box.code,
+                  activeRental: box.activeRental
+                    ? {
+                        type: box.activeRental.type,
+                        startDate: box.activeRental.startDate,
+                        endDate: box.activeRental.endDate,
+                        occupantName: box.activeRental.occupantName
+                      }
+                    : undefined
+                }))}
+              />
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
