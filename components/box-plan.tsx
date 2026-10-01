@@ -62,6 +62,7 @@ type BoxCard = {
     occupantPhone: string;
     invoices: Array<{ status: string; totalCents: number; paidCents: number }>;
   };
+  upcomingRental?: { occupantName: string; startDate: string };
 };
 
 function getBoxSignal(box: BoxCard, leadDays: number) {
@@ -452,6 +453,12 @@ function BoxDetails({
             </>
           ) : null}
           <Row label="Surface" value={`${box.surfaceM2} m2`} />
+          {box.upcomingRental ? (
+            <Row
+              label="Prochaine location"
+              value={`${box.upcomingRental.occupantName} à partir du ${format(new Date(box.upcomingRental.startDate), "dd MMM yyyy", { locale: fr })}`}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -504,6 +511,11 @@ function BoxDetails({
               </form>
             ) : null}
             <ReleaseBoxButton rentalId={box.activeRental.id} />
+            {!box.upcomingRental ? (
+              <Button variant="outline" onClick={() => setRenting(true)}>
+                Réserver pour plus tard
+              </Button>
+            ) : null}
           </>
         )}
         </div>

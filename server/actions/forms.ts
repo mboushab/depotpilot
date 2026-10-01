@@ -132,8 +132,24 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
   }
   const data = parsed.data;
   const unit = await prisma.storageUnit.findUniqueOrThrow({ where: { id: data.unitId } });
-  if (unit.status !== "AVAILABLE") {
-    return { status: "error", message: "Ce box n'est pas disponible." };
+  const newEndDate = data.type === "ONE_TIME" && data.durationDays ? addDays(data.startDate, data.durationDays) : null;
+
+  // A box already rented for a period can still be booked ahead for
+  // afterwards — only reject when the new dates actually overlap an
+  // existing active rental on this box.
+  const existingRentals = await prisma.rental.findMany({ where: { unitId: data.unitId, status: "ACTIVE" } });
+  const overlapping = existingRentals.find((rental) => {
+    const startsBeforeExistingEnds = !rental.endDate || data.startDate <= rental.endDate;
+    const existingStartsBeforeNewEnds = !newEndDate || rental.startDate <= newEndDate;
+    return startsBeforeExistingEnds && existingStartsBeforeNewEnds;
+  });
+  if (overlapping) {
+    return {
+      status: "error",
+      message: overlapping.endDate
+        ? `Ce box est déjà loué jusqu'au ${overlapping.endDate.toLocaleDateString("fr-FR")}.`
+        : "Ce box est déjà loué sans date de sortie prévue. Définissez une date de sortie sur la location en cours avant d'en réserver une nouvelle."
+    };
   }
 
   const depositEnabled = (await prisma.appSetting.findUnique({ where: { key: "depositEnabled" } }))?.value === "true";
@@ -164,8 +180,12 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
     paidCents = data.partialAmountCents;
   }
   const invoiceStatus = deriveInvoiceStatus(totals.totalCents, paidCents, computeDueDate(issueDate, data.type), issueDate);
-  const endDate = data.type === "ONE_TIME" && data.durationDays ? addDays(data.startDate, data.durationDays) : null;
+  const endDate = newEndDate;
   const isFutureStart = differenceInCalendarDays(data.startDate, new Date()) > 0;
+  // A future-dated rental only flips the box to RESERVED when it's
+  // currently free — queued behind an existing rental, the box stays
+  // whatever it already is (e.g. still OCCUPIED by the current tenant).
+  const nextUnitStatus = !isFutureStart ? "OCCUPIED" : unit.status === "AVAILABLE" ? "RESERVED" : null;
 
   const invoiceId = await prisma.$transaction(async (tx) => {
     const rental = await tx.rental.create({
@@ -183,10 +203,12 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
       }
     });
 
-    await tx.storageUnit.update({
-      where: { id: data.unitId },
-      data: { status: isFutureStart ? "RESERVED" : "OCCUPIED" }
-    });
+    if (nextUnitStatus) {
+      await tx.storageUnit.update({
+        where: { id: data.unitId },
+        data: { status: nextUnitStatus }
+      });
+    }
 
     const invoice = await tx.invoice.create({
       data: {
@@ -255,9 +277,16 @@ export async function releaseRentalAction(_prevState: ReleaseRentalState, formDa
   });
   const unpaidInvoices = rental.invoices.filter((invoice) => invoice.status !== "VOID" && invoice.paidCents < invoice.totalCents);
 
+  // Releasing early can leave a rental already booked for later on this same
+  // box — if so it goes back to RESERVED (not AVAILABLE), since it isn't
+  // really free, it just hasn't started yet.
+  const queuedRental = await prisma.rental.findFirst({
+    where: { unitId: rental.unitId, status: "ACTIVE", id: { not: rentalId } }
+  });
+
   await prisma.$transaction([
     prisma.rental.update({ where: { id: rentalId }, data: { status: "ENDED", endDate: new Date() } }),
-    prisma.storageUnit.update({ where: { id: rental.unitId }, data: { status: "AVAILABLE" } }),
+    prisma.storageUnit.update({ where: { id: rental.unitId }, data: { status: queuedRental ? "RESERVED" : "AVAILABLE" } }),
     ...unpaidInvoices.map((invoice) => prisma.invoice.update({ where: { id: invoice.id }, data: { status: "OVERDUE" } }))
   ]);
   revalidatePath("/boxes");

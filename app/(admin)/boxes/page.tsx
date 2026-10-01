@@ -6,13 +6,16 @@ export default async function BoxesPage() {
     prisma.storageUnit.findMany({
       orderBy: { position: "asc" },
       include: {
+        // No take:1 — a box can have a current rental AND one already
+        // booked ahead for after it ends, so all active ones are needed to
+        // tell them apart.
         rentals: {
           where: { status: "ACTIVE" },
+          orderBy: { startDate: "asc" },
           include: {
             occupant: true,
             invoices: true
-          },
-          take: 1
+          }
         }
       }
     }),
@@ -31,7 +34,13 @@ export default async function BoxesPage() {
       </div>
       <BoxPlan
         boxes={boxes.map((box) => {
-          const rental = box.rentals[0];
+          const now = new Date();
+          // Rentals are ordered by startDate asc: the current one is the
+          // last one already started (covers "now"); anything after it is
+          // queued for later.
+          const started = box.rentals.filter((rental) => rental.startDate <= now);
+          const rental = started[started.length - 1];
+          const upcoming = box.rentals.find((candidate) => candidate.startDate > now);
           return {
             id: box.id,
             code: box.code,
@@ -53,6 +62,12 @@ export default async function BoxesPage() {
                     totalCents: invoice.totalCents,
                     paidCents: invoice.paidCents
                   }))
+                }
+              : undefined,
+            upcomingRental: upcoming
+              ? {
+                  occupantName: `${upcoming.occupant.firstName} ${upcoming.occupant.lastName}`,
+                  startDate: upcoming.startDate.toISOString()
                 }
               : undefined
           };
