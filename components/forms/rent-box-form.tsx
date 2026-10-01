@@ -21,6 +21,9 @@ export function RentBoxForm({
   occupants,
   depositEnabled,
   defaultDepositCents,
+  initialStartDate,
+  initialType = "MONTHLY",
+  initialDurationDays,
   onClose
 }: {
   unitId: string;
@@ -29,11 +32,14 @@ export function RentBoxForm({
   occupants: Option[];
   depositEnabled: boolean;
   defaultDepositCents: number;
+  initialStartDate?: string;
+  initialType?: "MONTHLY" | "ONE_TIME";
+  initialDurationDays?: number;
   onClose?: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(createRentalAction, { status: "idle" } as CreateRentalState);
   const today = format(new Date(), "yyyy-MM-dd");
-  const [rentalType, setRentalType] = useState<"MONTHLY" | "ONE_TIME">("MONTHLY");
+  const [rentalType, setRentalType] = useState<"MONTHLY" | "ONE_TIME">(initialType);
   const [paymentMode, setPaymentMode] = useState<"NONE" | "FULL" | "PARTIAL">("NONE");
   const priceCentsRef = useRef<HTMLInputElement>(null);
   const partialAmountCentsRef = useRef<HTMLInputElement>(null);
@@ -115,7 +121,7 @@ export function RentBoxForm({
           {clientOptions.map((occupant) => <option key={occupant.id} value={occupant.id}>{occupant.label}</option>)}
         </select>
       </Field>
-      <Field label="Date de début"><Input type="date" name="startDate" defaultValue={today} required /></Field>
+      <Field label="Date de début"><Input type="date" name="startDate" defaultValue={initialStartDate ?? today} required /></Field>
       <Field label="Type de location">
         <div className="flex h-10 items-center gap-4">
           <label className="flex items-center gap-2 text-sm">
@@ -141,7 +147,7 @@ export function RentBoxForm({
         </div>
       </Field>
       {rentalType === "ONE_TIME" ? (
-        <Field label="Nombre de jours"><Input type="number" name="durationDays" min={1} defaultValue={1} required /></Field>
+        <Field label="Nombre de jours"><Input type="number" name="durationDays" min={1} defaultValue={initialDurationDays ?? 1} required /></Field>
       ) : null}
       <input type="hidden" name="billingDay" value="1" />
       <Field label="Dépôt de garantie">

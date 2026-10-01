@@ -13,7 +13,10 @@ export function RentBoxDialog({
   monthlyRateCents,
   occupants,
   depositEnabled,
-  defaultDepositCents
+  defaultDepositCents,
+  initialStartDate,
+  initialType,
+  initialDurationDays
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,6 +26,9 @@ export function RentBoxDialog({
   occupants: Option[];
   depositEnabled: boolean;
   defaultDepositCents: number;
+  initialStartDate?: string;
+  initialType?: "MONTHLY" | "ONE_TIME";
+  initialDurationDays?: number;
 }) {
   if (!open) return null;
 
@@ -43,6 +49,9 @@ export function RentBoxDialog({
             occupants={occupants}
             depositEnabled={depositEnabled}
             defaultDepositCents={defaultDepositCents}
+            initialStartDate={initialStartDate}
+            initialType={initialType}
+            initialDurationDays={initialDurationDays}
             onClose={onClose}
           />
         </div>

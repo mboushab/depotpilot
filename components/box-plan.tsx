@@ -20,7 +20,7 @@ import {
   Zap
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { addMonths, endOfMonth, format, isSameMonth, parseISO, startOfMonth, subMonths } from "date-fns";
+import { addMonths, differenceInCalendarDays, endOfMonth, format, isSameMonth, parseISO, startOfMonth, subMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
@@ -63,6 +63,9 @@ type BoxCard = {
     invoices: Array<{ status: string; totalCents: number; paidCents: number }>;
   };
   upcomingRental?: { occupantName: string; startDate: string };
+  // All of the box's active rentals (current + any queued one) — a period
+  // search needs to check every one, not just whichever is "the" one today.
+  rentals: Array<{ startDate: string; endDate: string | null; occupantName: string }>;
 };
 
 function getBoxSignal(box: BoxCard, leadDays: number) {
@@ -112,6 +115,7 @@ export function BoxPlan({
   const [rangeStart, setRangeStart] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [rangeEnd, setRangeEnd] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const isCurrentMonth = dateMode === "month" && isSameMonth(monthCursor, new Date());
+  const [periodBooking, setPeriodBooking] = useState<{ box: BoxCard; startDate: string; type: "MONTHLY" | "ONE_TIME"; durationDays?: number } | null>(null);
 
   function goToMonth(next: Date) {
     setStatusFilter(null);
@@ -119,20 +123,47 @@ export function BoxPlan({
     setMonthCursor(next);
   }
 
+  const periodRange = useMemo(
+    () => ({
+      start: dateMode === "month" ? startOfMonth(monthCursor) : parseISO(rangeStart),
+      end: dateMode === "month" ? endOfMonth(monthCursor) : parseISO(rangeEnd)
+    }),
+    [dateMode, monthCursor, rangeStart, rangeEnd]
+  );
+
   // Away from the current month (or in a custom period), "occupied" is
   // derived from each box's active rental dates instead of its live status —
   // a rental with no end date (the common monthly case) is treated as
   // occupying every period until it's actually ended.
   const periodBoxes = useMemo(() => {
-    const periodStart = dateMode === "month" ? startOfMonth(monthCursor) : parseISO(rangeStart);
-    const periodEnd = dateMode === "month" ? endOfMonth(monthCursor) : parseISO(rangeEnd);
+    const { start: periodStart, end: periodEnd } = periodRange;
     return boxes.map((box) => {
-      const rental = box.activeRental;
-      const occupied = !!rental && new Date(rental.startDate) <= periodEnd && (!rental.endDate || new Date(rental.endDate) >= periodStart);
-      const untilLabel = occupied ? (rental?.endDate ? `Jusqu'au ${format(new Date(rental.endDate), "dd/MM/yyyy")}` : "Durée indéterminée") : "";
-      return { box, occupied, untilLabel };
+      const overlapping = box.rentals.find(
+        (rental) => new Date(rental.startDate) <= periodEnd && (!rental.endDate || new Date(rental.endDate) >= periodStart)
+      );
+      const occupied = !!overlapping;
+      const untilLabel = occupied
+        ? overlapping.endDate
+          ? `Jusqu'au ${format(new Date(overlapping.endDate), "dd/MM/yyyy")}`
+          : "Durée indéterminée"
+        : "";
+      return { box, occupied, untilLabel, occupantName: overlapping?.occupantName };
     });
-  }, [boxes, dateMode, monthCursor, rangeStart, rangeEnd]);
+  }, [boxes, periodRange]);
+
+  // Booking straight from a period search pre-fills the dates the admin
+  // just searched for: an exact start/end becomes a one-off contract for
+  // that many days, a whole month stays an open-ended monthly rental.
+  function openPeriodBooking(box: BoxCard) {
+    setSelectedId(box.id);
+    const startDate = format(periodRange.start, "yyyy-MM-dd");
+    if (dateMode === "range") {
+      const durationDays = differenceInCalendarDays(periodRange.end, periodRange.start) + 1;
+      setPeriodBooking({ box, startDate, type: "ONE_TIME", durationDays });
+    } else {
+      setPeriodBooking({ box, startDate, type: "MONTHLY" });
+    }
+  }
 
   const stats = {
     free: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Libre").length,
@@ -332,11 +363,11 @@ export function BoxPlan({
             <p className="py-8 text-center text-sm text-muted-foreground">Aucun box ne correspond à ce filtre.</p>
           ) : (
             <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-              {visiblePeriodBoxes.map(({ box, occupied, untilLabel }) => (
+              {visiblePeriodBoxes.map(({ box, occupied, untilLabel, occupantName }) => (
                 <button
                   key={box.id}
                   type="button"
-                  onClick={() => setSelectedId(box.id)}
+                  onClick={() => (occupied ? setSelectedId(box.id) : openPeriodBooking(box))}
                   className={`min-h-28 rounded-md border-2 p-3 text-left transition hover:scale-[1.01] ${
                     occupied
                       ? "border-emerald-400 bg-emerald-400/15 text-emerald-700 dark:text-emerald-300"
@@ -344,13 +375,28 @@ export function BoxPlan({
                   } ${selected?.id === box.id ? "ring-[3px] ring-slate-900 ring-offset-2" : ""}`}
                 >
                   <span className="font-semibold">{box.code}</span>
-                  <p className="mt-5 text-sm font-medium">{occupied ? box.activeRental?.occupantName : "Disponible"}</p>
-                  <p className="mt-2 text-xs opacity-80">{occupied ? untilLabel : `À partir de ${formatCurrency(box.monthlyRateCents)}`}</p>
+                  <p className="mt-5 text-sm font-medium">{occupied ? occupantName : "Disponible"}</p>
+                  <p className="mt-2 text-xs opacity-80">{occupied ? untilLabel : `Louer pour cette période`}</p>
                 </button>
               ))}
             </div>
           )}
         </div>
+        {periodBooking ? (
+          <RentBoxDialog
+            open
+            onClose={() => setPeriodBooking(null)}
+            unitId={periodBooking.box.id}
+            unitCode={periodBooking.box.code}
+            monthlyRateCents={periodBooking.box.monthlyRateCents}
+            occupants={occupants}
+            depositEnabled={depositEnabled}
+            defaultDepositCents={defaultDepositCents}
+            initialStartDate={periodBooking.startDate}
+            initialType={periodBooking.type}
+            initialDurationDays={periodBooking.durationDays}
+          />
+        ) : null}
         {selected ? (
           <BoxDetails key={selected.id} box={selected} occupants={occupants} depositEnabled={depositEnabled} defaultDepositCents={defaultDepositCents} leadDays={leadDays} />
         ) : null}

@@ -69,7 +69,14 @@ export default async function BoxesPage() {
                   occupantName: `${upcoming.occupant.firstName} ${upcoming.occupant.lastName}`,
                   startDate: upcoming.startDate.toISOString()
                 }
-              : undefined
+              : undefined,
+            // All of them, current and queued — a period search needs to
+            // check every one, not just whichever counts as "active" today.
+            rentals: box.rentals.map((entry) => ({
+              startDate: entry.startDate.toISOString(),
+              endDate: entry.endDate?.toISOString() ?? null,
+              occupantName: `${entry.occupant.firstName} ${entry.occupant.lastName}`
+            }))
           };
         })}
         occupants={occupants.map((occupant) => ({ id: occupant.id, label: `${occupant.firstName} ${occupant.lastName}`, phone: occupant.phone }))}
