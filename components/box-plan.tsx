@@ -20,7 +20,7 @@ import {
   Zap
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { addMonths, endOfMonth, format, isSameMonth, startOfMonth, subMonths } from "date-fns";
+import { addMonths, endOfMonth, format, isSameMonth, parseISO, startOfMonth, subMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
@@ -107,27 +107,31 @@ export function BoxPlan({
   const selected = useMemo(() => boxes.find((box) => box.id === selectedId) ?? boxes[0], [boxes, selectedId]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [monthCursor, setMonthCursor] = useState(() => new Date());
-  const isCurrentMonth = isSameMonth(monthCursor, new Date());
+  const [dateMode, setDateMode] = useState<"month" | "range">("month");
+  const [rangeStart, setRangeStart] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [rangeEnd, setRangeEnd] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const isCurrentMonth = dateMode === "month" && isSameMonth(monthCursor, new Date());
 
   function goToMonth(next: Date) {
     setStatusFilter(null);
+    setDateMode("month");
     setMonthCursor(next);
   }
 
-  // Away from the current month, "occupied" is derived from each box's
-  // active rental dates instead of its live status — a rental with no end
-  // date (the common monthly case) is treated as occupying every future
-  // month until it's actually ended.
+  // Away from the current month (or in a custom period), "occupied" is
+  // derived from each box's active rental dates instead of its live status —
+  // a rental with no end date (the common monthly case) is treated as
+  // occupying every period until it's actually ended.
   const periodBoxes = useMemo(() => {
-    const periodStart = startOfMonth(monthCursor);
-    const periodEnd = endOfMonth(monthCursor);
+    const periodStart = dateMode === "month" ? startOfMonth(monthCursor) : parseISO(rangeStart);
+    const periodEnd = dateMode === "month" ? endOfMonth(monthCursor) : parseISO(rangeEnd);
     return boxes.map((box) => {
       const rental = box.activeRental;
       const occupied = !!rental && new Date(rental.startDate) <= periodEnd && (!rental.endDate || new Date(rental.endDate) >= periodStart);
       const untilLabel = occupied ? (rental?.endDate ? `Jusqu'au ${format(new Date(rental.endDate), "dd/MM/yyyy")}` : "Durée indéterminée") : "";
       return { box, occupied, untilLabel };
     });
-  }, [boxes, monthCursor]);
+  }, [boxes, dateMode, monthCursor, rangeStart, rangeEnd]);
 
   const stats = {
     free: boxes.filter((box) => getBoxSignal(box, leadDays).label === "Libre").length,
@@ -178,34 +182,72 @@ export function BoxPlan({
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="rounded-lg border bg-card p-4 shadow-panel">
           <h2 className="mb-3 text-base font-semibold">Plan des box</h2>
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            {dateMode === "month" ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => goToMonth(subMonths(monthCursor, 1))}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-md border hover:bg-muted"
+                  aria-label="Mois précédent"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-sm font-semibold capitalize">{format(monthCursor, "MMMM yyyy", { locale: fr })}</span>
+                <button
+                  type="button"
+                  onClick={() => goToMonth(addMonths(monthCursor, 1))}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-md border hover:bg-muted"
+                  aria-label="Mois suivant"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-xs">Du</Label>
+                <input
+                  type="date"
+                  value={rangeStart}
+                  onChange={(event) => {
+                    setStatusFilter(null);
+                    setRangeStart(event.target.value);
+                  }}
+                  className="h-8 rounded-md border bg-background px-2 text-sm"
+                />
+                <Label className="text-xs">Au</Label>
+                <input
+                  type="date"
+                  value={rangeEnd}
+                  min={rangeStart}
+                  onChange={(event) => {
+                    setStatusFilter(null);
+                    setRangeEnd(event.target.value);
+                  }}
+                  className="h-8 rounded-md border bg-background px-2 text-sm"
+                />
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => goToMonth(subMonths(monthCursor, 1))}
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-md border hover:bg-muted"
-                aria-label="Mois précédent"
+                onClick={() => {
+                  setStatusFilter(null);
+                  setDateMode(dateMode === "month" ? "range" : "month");
+                }}
+                className={`shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted ${dateMode === "range" ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
               >
-                <ChevronLeft className="h-4 w-4" />
+                Période personnalisée
               </button>
-              <span className="text-sm font-semibold capitalize">{format(monthCursor, "MMMM yyyy", { locale: fr })}</span>
               <button
                 type="button"
-                onClick={() => goToMonth(addMonths(monthCursor, 1))}
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-md border hover:bg-muted"
-                aria-label="Mois suivant"
+                onClick={() => goToMonth(new Date())}
+                disabled={isCurrentMonth}
+                className="shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
               >
-                <ChevronRight className="h-4 w-4" />
+                Aujourd&apos;hui
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => goToMonth(new Date())}
-              disabled={isCurrentMonth}
-              className="shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
-            >
-              Aujourd&apos;hui
-            </button>
           </div>
           <div className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
             {(isCurrentMonth
