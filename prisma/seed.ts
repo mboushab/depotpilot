@@ -20,9 +20,16 @@ async function main() {
   });
 
   await seedSettings();
-  const occupants = await seedOccupants();
   const boxes = await seedBoxes();
   await seedLoadingBays();
+
+  // Sample clients, rentals, parking and notifications are for local
+  // development only. docker-compose never passes this flag to the app
+  // container, so an installed copy (which runs this seed on every start)
+  // never gets demo data added to a client's real records.
+  if (process.env.SEED_DEMO_DATA !== "true") return;
+
+  const occupants = await seedOccupants();
 
   if ((await prisma.rental.count()) === 0) {
     await createDemoRental(occupants[0].id, boxes[0].id, boxes[0].code, boxes[0].monthlyRateCents, 0, 1);

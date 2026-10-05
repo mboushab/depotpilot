@@ -41,6 +41,20 @@ export default async function BoxesPage() {
           const started = box.rentals.filter((rental) => rental.startDate <= now);
           const rental = started[started.length - 1];
           const upcoming = box.rentals.find((candidate) => candidate.startDate > now);
+          const toRental = (entry: (typeof box.rentals)[number]) => ({
+            id: entry.id,
+            type: entry.type,
+            startDate: entry.startDate.toISOString(),
+            endDate: entry.endDate?.toISOString() ?? null,
+            occupantName: `${entry.occupant.firstName} ${entry.occupant.lastName}`,
+            occupantPhone: entry.occupant.phone,
+            monthlyRateCents: entry.monthlyRateCents,
+            invoices: entry.invoices.map((invoice) => ({
+              status: invoice.status,
+              totalCents: invoice.totalCents,
+              paidCents: invoice.paidCents
+            }))
+          });
           return {
             id: box.id,
             code: box.code,
@@ -48,22 +62,7 @@ export default async function BoxesPage() {
             status: box.status,
             monthlyRateCents: box.monthlyRateCents,
             surfaceM2: box.surfaceM2.toString(),
-            activeRental: rental
-              ? {
-                  id: rental.id,
-                  type: rental.type,
-                  startDate: rental.startDate.toISOString(),
-                  endDate: rental.endDate?.toISOString() ?? null,
-                  occupantName: `${rental.occupant.firstName} ${rental.occupant.lastName}`,
-                  occupantPhone: rental.occupant.phone,
-                  monthlyRateCents: rental.monthlyRateCents,
-                  invoices: rental.invoices.map((invoice) => ({
-                    status: invoice.status,
-                    totalCents: invoice.totalCents,
-                    paidCents: invoice.paidCents
-                  }))
-                }
-              : undefined,
+            activeRental: rental ? toRental(rental) : undefined,
             upcomingRental: upcoming
               ? {
                   occupantName: `${upcoming.occupant.firstName} ${upcoming.occupant.lastName}`,
@@ -71,12 +70,8 @@ export default async function BoxesPage() {
                 }
               : undefined,
             // All of them, current and queued — a period search needs to
-            // check every one, not just whichever counts as "active" today.
-            rentals: box.rentals.map((entry) => ({
-              startDate: entry.startDate.toISOString(),
-              endDate: entry.endDate?.toISOString() ?? null,
-              occupantName: `${entry.occupant.firstName} ${entry.occupant.lastName}`
-            }))
+            // check every one, and each can be managed from the drawer.
+            rentals: box.rentals.map(toRental)
           };
         })}
         occupants={occupants.map((occupant) => ({ id: occupant.id, label: `${occupant.firstName} ${occupant.lastName}`, phone: occupant.phone }))}

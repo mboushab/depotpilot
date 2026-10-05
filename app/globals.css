@@ -91,3 +91,14 @@ textarea {
 .react-datepicker__time-list-item:hover {
   background-color: hsl(var(--secondary)) !important;
 }
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(2rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

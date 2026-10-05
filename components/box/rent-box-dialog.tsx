@@ -16,7 +16,9 @@ export function RentBoxDialog({
   defaultDepositCents,
   initialStartDate,
   initialType,
-  initialDurationDays
+  initialDurationDays,
+  maxEndDate,
+  minStartDate
 }: {
   open: boolean;
   onClose: () => void;
@@ -29,6 +31,8 @@ export function RentBoxDialog({
   initialStartDate?: string;
   initialType?: "MONTHLY" | "ONE_TIME";
   initialDurationDays?: number;
+  maxEndDate?: string;
+  minStartDate?: string;
 }) {
   if (!open) return null;
 
@@ -52,6 +56,8 @@ export function RentBoxDialog({
             initialStartDate={initialStartDate}
             initialType={initialType}
             initialDurationDays={initialDurationDays}
+            maxEndDate={maxEndDate}
+            minStartDate={minStartDate}
             onClose={onClose}
           />
         </div>

@@ -19,6 +19,13 @@ describe("zod validations", () => {
     ).toBe(false);
   });
 
+  it("requires the rental type to be chosen explicitly", () => {
+    const base = { occupantId: "o1", unitId: "u1", startDate: "2026-09-10", billingDay: 1, depositCents: 0, monthlyRateCents: 7900 };
+    const missing = rentalSchema.safeParse(base);
+    expect(missing.success).toBe(false);
+    expect(rentalSchema.safeParse({ ...base, type: "MONTHLY" }).success).toBe(true);
+  });
+
   it("accepts a complete storage unit", () => {
     expect(
       unitSchema.safeParse({

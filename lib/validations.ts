@@ -35,7 +35,7 @@ export const rentalSchema = z
   .object({
     occupantId: z.string().min(1, "Sélectionnez un client"),
     unitId: z.string().min(1, "Sélectionnez un box"),
-    type: z.enum(["MONTHLY", "ONE_TIME"]).default("MONTHLY"),
+    type: z.enum(["MONTHLY", "ONE_TIME"], { message: "Choisissez le type de location : mensuel ou ponctuel" }),
     startDate: z.coerce.date(),
     durationDays: z.coerce.number().int().min(1).max(3650).optional(),
     billingDay: z.coerce.number().int().min(1).max(28),

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useActionState } from "react";
-import { format } from "date-fns";
+import { useEffect, useState, useActionState } from "react";
+import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { createRentalAction, type CreateRentalState } from "@/server/actions/forms";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WhatsAppInvoiceButton } from "@/components/invoices/whatsapp-invoice-button";
@@ -22,8 +23,10 @@ export function RentBoxForm({
   depositEnabled,
   defaultDepositCents,
   initialStartDate,
-  initialType = "MONTHLY",
+  initialType,
   initialDurationDays,
+  maxEndDate,
+  minStartDate,
   onClose
 }: {
   unitId: string;
@@ -35,25 +38,30 @@ export function RentBoxForm({
   initialStartDate?: string;
   initialType?: "MONTHLY" | "ONE_TIME";
   initialDurationDays?: number;
+  // Last day the box is free (the next booking starts right after).
+  maxEndDate?: string;
+  // First day the box is free again (the previous rental ended the day before).
+  minStartDate?: string;
   onClose?: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(createRentalAction, { status: "idle" } as CreateRentalState);
   const today = format(new Date(), "yyyy-MM-dd");
-  const [rentalType, setRentalType] = useState<"MONTHLY" | "ONE_TIME">(initialType);
+  // No type is preselected, so the person renting has to pick one on purpose
+  // (unless a period search already decided it).
+  const [rentalType, setRentalType] = useState<"" | "MONTHLY" | "ONE_TIME">(initialType ?? "");
+  const [startDate, setStartDate] = useState(initialStartDate ?? today);
+  const maxDays = maxEndDate && startDate ? differenceInCalendarDays(parseISO(maxEndDate), parseISO(startDate)) : undefined;
+  const openEndedBlocked = !!maxEndDate && rentalType === "MONTHLY";
+  const startTooEarly = !!minStartDate && !!startDate && startDate < minStartDate;
   const [paymentMode, setPaymentMode] = useState<"NONE" | "FULL" | "PARTIAL">("NONE");
-  const priceCentsRef = useRef<HTMLInputElement>(null);
-  const partialAmountCentsRef = useRef<HTMLInputElement>(null);
-  const selectRef = useRef<HTMLSelectElement>(null);
-  const pendingSelectId = useRef<string | null>(null);
+  // Every field is controlled: React resets uncontrolled fields after any
+  // form action, so a rejected submission would otherwise wipe what was typed.
   const [clientOptions, setClientOptions] = useState(occupants);
   const [selectedClientId, setSelectedClientId] = useState("");
-
-  useEffect(() => {
-    if (pendingSelectId.current && selectRef.current) {
-      selectRef.current.value = pendingSelectId.current;
-      pendingSelectId.current = null;
-    }
-  }, [clientOptions]);
+  const [durationDays, setDurationDays] = useState(String(initialDurationDays ?? 1));
+  const [depositCents, setDepositCents] = useState(String(defaultDepositCents));
+  const [priceEuros, setPriceEuros] = useState((monthlyRateCents / 100).toFixed(2));
+  const [partialEuros, setPartialEuros] = useState("");
 
   useEffect(() => {
     if (state.status === "success") {
@@ -102,7 +110,6 @@ export function RentBoxForm({
         action={
           <NewClientDialog
             onCreated={(client) => {
-              pendingSelectId.current = client.id;
               setSelectedClientId(client.id);
               setClientOptions((current) => [...current, client]);
               toast.success(`${client.label} sélectionné.`);
@@ -110,25 +117,24 @@ export function RentBoxForm({
           />
         }
       >
-        <select
-          ref={selectRef}
-          className="h-10 w-full rounded-md border bg-white px-3 text-sm text-foreground dark:bg-card"
+        <Combobox
           name="occupantId"
-          defaultValue=""
-          onChange={(event) => setSelectedClientId(event.target.value)}
-        >
-          <option value="">Sélectionner</option>
-          {clientOptions.map((occupant) => <option key={occupant.id} value={occupant.id}>{occupant.label}</option>)}
-        </select>
+          options={clientOptions.map((occupant) => ({ id: occupant.id, label: occupant.label, hint: occupant.phone }))}
+          value={selectedClientId}
+          onChange={setSelectedClientId}
+          placeholder="Taper un nom pour rechercher"
+          emptyMessage="Aucun client trouvé"
+        />
       </Field>
-      <Field label="Date de début"><Input type="date" name="startDate" defaultValue={initialStartDate ?? today} required /></Field>
-      <Field label="Type de location">
+      <Field label="Date de début"><Input type="date" name="startDate" min={minStartDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} required /></Field>
+      <Field label="Type de location (à choisir)">
         <div className="flex h-10 items-center gap-4">
           <label className="flex items-center gap-2 text-sm">
             <input
               type="radio"
               name="type"
               value="MONTHLY"
+              required
               checked={rentalType === "MONTHLY"}
               onChange={() => setRentalType("MONTHLY")}
             />
@@ -147,12 +153,12 @@ export function RentBoxForm({
         </div>
       </Field>
       {rentalType === "ONE_TIME" ? (
-        <Field label="Nombre de jours"><Input type="number" name="durationDays" min={1} defaultValue={initialDurationDays ?? 1} required /></Field>
+        <Field label="Nombre de jours"><Input type="number" name="durationDays" min={1} max={maxDays && maxDays > 0 ? maxDays : undefined} value={durationDays} onChange={(event) => setDurationDays(event.target.value)} required /></Field>
       ) : null}
       <input type="hidden" name="billingDay" value="1" />
       <Field label="Dépôt de garantie">
         {depositEnabled ? (
-          <Input type="number" name="depositCents" defaultValue={defaultDepositCents} />
+          <Input type="number" name="depositCents" value={depositCents} onChange={(event) => setDepositCents(event.target.value)} />
         ) : (
           <>
             <Input type="number" value={0} disabled />
@@ -160,20 +166,16 @@ export function RentBoxForm({
           </>
         )}
       </Field>
-      <Field label={rentalType === "ONE_TIME" ? "Prix total (€)" : "Prix (€ / mois)"}>
+      <Field label={rentalType === "ONE_TIME" ? "Prix total (€)" : rentalType === "MONTHLY" ? "Prix (€ / mois)" : "Prix (€)"}>
         <Input
           type="number"
           step="0.01"
           min="0"
-          defaultValue={(monthlyRateCents / 100).toFixed(2)}
-          onChange={(event) => {
-            if (priceCentsRef.current) {
-              priceCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
-            }
-          }}
+          value={priceEuros}
+          onChange={(event) => setPriceEuros(event.target.value)}
           required
         />
-        <input type="hidden" name="monthlyRateCents" ref={priceCentsRef} defaultValue={monthlyRateCents} />
+        <input type="hidden" name="monthlyRateCents" value={Math.round(Number(priceEuros || "0") * 100)} />
       </Field>
       <Field label="Paiement" className="md:col-span-3">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -205,21 +207,29 @@ export function RentBoxForm({
               type="number"
               step="0.01"
               min="0.01"
-              onChange={(event) => {
-                if (partialAmountCentsRef.current) {
-                  partialAmountCentsRef.current.value = String(Math.round(Number(event.target.value || "0") * 100));
-                }
-              }}
+              value={partialEuros}
+              onChange={(event) => setPartialEuros(event.target.value)}
               required
             />
-            <input type="hidden" name="partialAmountCents" ref={partialAmountCentsRef} />
+            <input type="hidden" name="partialAmountCents" value={Math.round(Number(partialEuros || "0") * 100)} />
           </div>
         ) : null}
       </Field>
+      {minStartDate ? (
+        <p className={cn("text-sm md:col-span-3", startTooEarly ? "font-medium text-destructive" : "text-amber-700 dark:text-amber-300")}>
+          Ce box est disponible à partir du {format(parseISO(minStartDate), "dd/MM/yyyy")} : la date de début ne peut pas être antérieure.
+        </p>
+      ) : null}
+      {maxEndDate ? (
+        <p className="text-sm text-amber-700 dark:text-amber-300 md:col-span-3">
+          Ce box est libre jusqu&apos;au {format(parseISO(maxEndDate), "dd/MM/yyyy")} (une autre location suit) : seule une location ponctuelle
+          se terminant au plus tard ce jour-là est possible.
+        </p>
+      ) : null}
       {state.status === "error" ? (
         <p className="text-sm font-medium text-destructive md:col-span-3">{state.message}</p>
       ) : null}
-      <div className="md:col-span-3"><Button disabled={isPending}>{isPending ? "Création…" : "Créer le contrat"}</Button></div>
+      <div className="md:col-span-3"><Button disabled={isPending || openEndedBlocked || startTooEarly}>{isPending ? "Création…" : "Créer le contrat"}</Button></div>
     </form>
   );
 }

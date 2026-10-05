@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
-import { addDays, addHours, addMonths, differenceInCalendarDays } from "date-fns";
+import { addDays, addHours, addMonths, differenceInCalendarDays, differenceInCalendarMonths, isAfter } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { calculateInvoiceTotals, computeDueDate, buildInvoiceNumber, deriveInvoiceStatus } from "@/lib/billing";
 import { formatCurrency } from "@/lib/utils";
@@ -17,6 +17,7 @@ import {
   unitSchema
 } from "@/lib/validations";
 import { requireAdmin } from "@/lib/auth";
+import { conflictMessage, findConflict } from "@/lib/rental-conflicts";
 
 export type CreateOccupantState =
   | { status: "idle" }
@@ -138,18 +139,10 @@ export async function createRentalAction(_prevState: CreateRentalState, formData
   // afterwards — only reject when the new dates actually overlap an
   // existing active rental on this box.
   const existingRentals = await prisma.rental.findMany({ where: { unitId: data.unitId, status: "ACTIVE" } });
-  const overlapping = existingRentals.find((rental) => {
-    const startsBeforeExistingEnds = !rental.endDate || data.startDate <= rental.endDate;
-    const existingStartsBeforeNewEnds = !newEndDate || rental.startDate <= newEndDate;
-    return startsBeforeExistingEnds && existingStartsBeforeNewEnds;
-  });
-  if (overlapping) {
-    return {
-      status: "error",
-      message: overlapping.endDate
-        ? `Ce box est déjà loué jusqu'au ${overlapping.endDate.toLocaleDateString("fr-FR")}.`
-        : "Ce box est déjà loué sans date de sortie prévue. Définissez une date de sortie sur la location en cours avant d'en réserver une nouvelle."
-    };
+  const candidate = { startDate: data.startDate, endDate: newEndDate };
+  const conflict = findConflict(candidate, existingRentals);
+  if (conflict) {
+    return { status: "error", message: conflictMessage(candidate, conflict) };
   }
 
   const depositEnabled = (await prisma.appSetting.findUnique({ where: { key: "depositEnabled" } }))?.value === "true";
@@ -273,24 +266,67 @@ export async function releaseRentalAction(_prevState: ReleaseRentalState, formDa
   const rentalId = String(formData.get("rentalId") ?? "");
   const rental = await prisma.rental.findUniqueOrThrow({
     where: { id: rentalId },
-    include: { occupant: true, unit: true, invoices: true }
+    include: { occupant: true, unit: true }
   });
-  const unpaidInvoices = rental.invoices.filter((invoice) => invoice.status !== "VOID" && invoice.paidCents < invoice.totalCents);
 
-  // Releasing early can leave a rental already booked for later on this same
-  // box — if so it goes back to RESERVED (not AVAILABLE), since it isn't
-  // really free, it just hasn't started yet.
-  const queuedRental = await prisma.rental.findFirst({
+  // Releasing can leave other rentals on this box: one already running
+  // keeps it OCCUPIED (e.g. ending a rental booked for later), one only
+  // booked ahead makes it RESERVED, none frees it.
+  const remaining = await prisma.rental.findMany({
     where: { unitId: rental.unitId, status: "ACTIVE", id: { not: rentalId } }
   });
+  const now = new Date();
+  const nextUnitStatus = remaining.some((other) => other.startDate <= now) ? "OCCUPIED" : remaining.length > 0 ? "RESERVED" : "AVAILABLE";
+
+  await prisma.$transaction(async (tx) => {
+    await tx.rental.update({ where: { id: rentalId }, data: { status: "ENDED", endDate: now } });
+    await tx.storageUnit.update({ where: { id: rental.unitId }, data: { status: nextUnitStatus } });
+    // The rent owed stops at the release date: a monthly rental is billed
+    // for the months started up to today, like after an entry date change.
+    // A one-off rental keeps its fixed price.
+    if (rental.type === "MONTHLY") await repriceRentalInvoice(tx, { ...rental, endDate: now });
+    // Whatever is still unpaid once the rental is over is overdue.
+    await tx.invoice.updateMany({
+      where: { rentalId, status: { notIn: ["VOID", "PAID"] } },
+      data: { status: "OVERDUE" }
+    });
+  });
+  revalidatePath("/boxes");
+  revalidatePath("/invoices");
+  revalidatePath("/clients");
+  return { status: "success" };
+}
+
+export type CancelReservationState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
+
+export async function cancelReservationAction(
+  _prevState: CancelReservationState,
+  formData: FormData
+): Promise<CancelReservationState> {
+  await requireAdmin();
+  const rentalId = String(formData.get("rentalId") ?? "");
+  const rental = await prisma.rental.findUniqueOrThrow({ where: { id: rentalId }, include: { invoices: true } });
+  if (rental.status !== "ACTIVE" || differenceInCalendarDays(rental.startDate, new Date()) <= 0) {
+    return { status: "error", message: "Seule une réservation qui n'a pas encore commencé peut être annulée." };
+  }
+
+  const remaining = await prisma.rental.findMany({
+    where: { unitId: rental.unitId, status: "ACTIVE", id: { not: rentalId } }
+  });
+  const now = new Date();
+  const nextUnitStatus = remaining.some((other) => other.startDate <= now) ? "OCCUPIED" : remaining.length > 0 ? "RESERVED" : "AVAILABLE";
+  // Invoices nothing was paid on are voided; any that received a payment
+  // stay as they are so the accounting trail (and a refund, if due) is kept.
+  const unpaidInvoices = rental.invoices.filter((invoice) => invoice.status !== "VOID" && invoice.paidCents === 0);
 
   await prisma.$transaction([
-    prisma.rental.update({ where: { id: rentalId }, data: { status: "ENDED", endDate: new Date() } }),
-    prisma.storageUnit.update({ where: { id: rental.unitId }, data: { status: queuedRental ? "RESERVED" : "AVAILABLE" } }),
-    ...unpaidInvoices.map((invoice) => prisma.invoice.update({ where: { id: invoice.id }, data: { status: "OVERDUE" } }))
+    prisma.rental.update({ where: { id: rentalId }, data: { status: "CANCELLED" } }),
+    prisma.storageUnit.update({ where: { id: rental.unitId }, data: { status: nextUnitStatus } }),
+    ...unpaidInvoices.map((invoice) => prisma.invoice.update({ where: { id: invoice.id }, data: { status: "VOID" } }))
   ]);
   revalidatePath("/boxes");
   revalidatePath("/invoices");
+  revalidatePath("/clients");
   return { status: "success" };
 }
 
@@ -303,6 +339,21 @@ export async function extendRentalAction(_prevState: ExtendRentalState, formData
   const endDate = raw ? new Date(raw) : null;
   if (raw && Number.isNaN(endDate?.getTime())) {
     return { status: "error", message: "Date de sortie invalide." };
+  }
+
+  const rental = await prisma.rental.findUniqueOrThrow({ where: { id: rentalId } });
+  if (endDate && endDate < rental.startDate) {
+    return { status: "error", message: "La date de sortie doit être après la date d'entrée." };
+  }
+  // Moving the exit date (or clearing it) must not run into a rental
+  // already booked for after this one.
+  const others = await prisma.rental.findMany({ where: { unitId: rental.unitId, status: "ACTIVE", id: { not: rentalId } } });
+  const conflict = findConflict({ startDate: rental.startDate, endDate }, others);
+  if (conflict) {
+    return {
+      status: "error",
+      message: `Impossible : une location commence le ${conflict.startDate.toLocaleDateString("fr-FR")} sur ce box (sortie possible jusqu'au ${addDays(conflict.startDate, -1).toLocaleDateString("fr-FR")} au plus tard).`
+    };
   }
   await prisma.rental.update({ where: { id: rentalId }, data: { endDate, exitAlertNotifiedAt: null } });
   revalidatePath("/boxes");
@@ -392,14 +443,16 @@ export async function updateRentalRateAction(
     for (const invoice of rental.invoices) {
       const rentalLine = invoice.lines.find((line) => line.description.startsWith("Location"));
       if (!rentalLine) continue;
+      // The rental line can cover several months (see the start date edit).
+      const rentalLineTotal = newRateCents * rentalLine.quantity;
       await tx.invoiceLine.update({
         where: { id: rentalLine.id },
-        data: { unitCents: newRateCents, totalCents: newRateCents }
+        data: { unitCents: newRateCents, totalCents: rentalLineTotal }
       });
       const otherLinesTotal = invoice.lines
         .filter((line) => line.id !== rentalLine.id)
         .reduce((sum, line) => sum + line.totalCents, 0);
-      const newTotalCents = otherLinesTotal + newRateCents;
+      const newTotalCents = otherLinesTotal + rentalLineTotal;
 
       // A rental already marked fully paid shouldn't flip back to unpaid
       // just because the price was corrected upward — treat the increase
@@ -427,6 +480,158 @@ export async function updateRentalRateAction(
     }
   });
 
+  revalidatePath("/boxes");
+  revalidatePath("/invoices");
+  revalidatePath("/clients");
+  return { status: "success" };
+}
+
+// Whether a box is OCCUPIED or only RESERVED depends on whether any of its
+// active rentals has started yet — recomputed after a start date changes.
+function unitStatusFor(rentals: { startDate: Date }[]) {
+  const now = new Date();
+  return rentals.some((rental) => rental.startDate <= now) ? "OCCUPIED" : "RESERVED";
+}
+
+// Re-prices the rental invoice after the start date or the type changed.
+// A monthly rental owes one rent per month started since it began (from the
+// start date up to today, at least the first); a one-off rental owes its
+// fixed price once. Anything already paid stays recorded: an overpayment
+// just leaves the balance at zero.
+async function repriceRentalInvoice(
+  tx: Prisma.TransactionClient,
+  rental: { id: string; type: string; startDate: Date; endDate: Date | null; monthlyRateCents: number; unit: { code: string } }
+) {
+  const invoices = await tx.invoice.findMany({
+    where: { rentalId: rental.id, status: { not: "VOID" } },
+    include: { lines: true },
+    orderBy: { issueDate: "asc" }
+  });
+  const invoice = invoices.find((candidate) => candidate.lines.some((line) => line.description.startsWith("Location")));
+  const rentalLine = invoice?.lines.find((line) => line.description.startsWith("Location"));
+  if (!invoice || !rentalLine) return;
+
+  const rate = rental.monthlyRateCents;
+  let quantity = 1;
+  let description = `Location box ${rental.unit.code}`;
+  if (rental.type === "MONTHLY") {
+    // A month is started once its day-of-month has come around: from the
+    // 15th, the 15th of the next month begins month two.
+    const today = new Date();
+    quantity = isAfter(rental.startDate, today)
+      ? 1
+      : Math.max(1, differenceInCalendarMonths(today, rental.startDate) + (today.getDate() >= rental.startDate.getDate() ? 1 : 0));
+    if (quantity > 1) description += ` (${quantity} mois)`;
+  } else if (rental.endDate) {
+    description += ` (${differenceInCalendarDays(rental.endDate, rental.startDate)} jours, ${formatCurrency(rate)} au total)`;
+  }
+
+  const lineTotal = rate * quantity;
+  await tx.invoiceLine.update({
+    where: { id: rentalLine.id },
+    data: { quantity, unitCents: rate, totalCents: lineTotal, description }
+  });
+  const otherLinesTotal = invoice.lines.filter((line) => line.id !== rentalLine.id).reduce((sum, line) => sum + line.totalCents, 0);
+  const newTotalCents = otherLinesTotal + lineTotal;
+  await tx.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      subtotalCents: newTotalCents,
+      totalCents: newTotalCents,
+      // Rent for months already gone by that isn't settled is overdue, even
+      // though the invoice's original due date (30 days after issue) may
+      // not have passed yet.
+      status: quantity > 1 && newTotalCents > invoice.paidCents
+        ? "OVERDUE"
+        : deriveInvoiceStatus(newTotalCents, invoice.paidCents, invoice.dueDate)
+    }
+  });
+}
+
+export type UpdateRentalStartDateState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
+
+export async function updateRentalStartDateAction(
+  _prevState: UpdateRentalStartDateState,
+  formData: FormData
+): Promise<UpdateRentalStartDateState> {
+  await requireAdmin();
+  const rentalId = String(formData.get("rentalId") ?? "");
+  const raw = String(formData.get("startDate") ?? "");
+  const startDate = raw ? new Date(raw) : null;
+  if (!startDate || Number.isNaN(startDate.getTime())) {
+    return { status: "error", message: "Date d'entrée invalide." };
+  }
+
+  const rental = await prisma.rental.findUniqueOrThrow({ where: { id: rentalId }, include: { unit: true } });
+  if (rental.endDate && startDate > rental.endDate) {
+    return { status: "error", message: "La date d'entrée doit être avant la date de sortie." };
+  }
+  const others = await prisma.rental.findMany({ where: { unitId: rental.unitId, status: "ACTIVE", id: { not: rentalId } } });
+  const candidate = { startDate, endDate: rental.endDate };
+  const conflict = findConflict(candidate, others);
+  if (conflict) {
+    return { status: "error", message: conflictMessage(candidate, conflict) };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.rental.update({ where: { id: rentalId }, data: { startDate } });
+    await repriceRentalInvoice(tx, { ...rental, startDate });
+
+    if (rental.status === "ACTIVE") {
+      await tx.storageUnit.update({
+        where: { id: rental.unitId },
+        data: { status: unitStatusFor([{ startDate }, ...others]) }
+      });
+    }
+  });
+  revalidatePath("/boxes");
+  revalidatePath("/invoices");
+  revalidatePath("/clients");
+  return { status: "success" };
+}
+
+export type UpdateRentalTypeState = { status: "idle" } | { status: "success" } | { status: "error"; message: string };
+
+export async function updateRentalTypeAction(
+  _prevState: UpdateRentalTypeState,
+  formData: FormData
+): Promise<UpdateRentalTypeState> {
+  await requireAdmin();
+  const rentalId = String(formData.get("rentalId") ?? "");
+  const type = String(formData.get("type") ?? "");
+  if (type !== "MONTHLY" && type !== "ONE_TIME") {
+    return { status: "error", message: "Type de location invalide." };
+  }
+
+  const rental = await prisma.rental.findUniqueOrThrow({ where: { id: rentalId }, include: { unit: true } });
+  // A one-off rental always has an exit date; a monthly one is open-ended,
+  // so going monthly clears the exit date.
+  let endDate: Date | null = null;
+  if (type === "ONE_TIME") {
+    endDate = rental.endDate;
+    const raw = String(formData.get("endDate") ?? "");
+    if (raw) {
+      endDate = new Date(raw);
+      if (Number.isNaN(endDate.getTime())) return { status: "error", message: "Date de sortie invalide." };
+    }
+    if (!endDate) return { status: "error", message: "Une location ponctuelle nécessite une date de sortie." };
+    if (endDate < rental.startDate) {
+      return { status: "error", message: "La date de sortie doit être après la date d'entrée." };
+    }
+  }
+  // Open-ended monthly rentals can't run into a rental booked for later.
+  const others = await prisma.rental.findMany({ where: { unitId: rental.unitId, status: "ACTIVE", id: { not: rentalId } } });
+  const candidate = { startDate: rental.startDate, endDate };
+  const conflict = findConflict(candidate, others);
+  if (conflict) return { status: "error", message: conflictMessage(candidate, conflict) };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.rental.update({
+      where: { id: rentalId },
+      data: { type, endDate, ...(endDate?.getTime() !== rental.endDate?.getTime() ? { exitAlertNotifiedAt: null } : {}) }
+    });
+    await repriceRentalInvoice(tx, { ...rental, type, endDate });
+  });
   revalidatePath("/boxes");
   revalidatePath("/invoices");
   revalidatePath("/clients");

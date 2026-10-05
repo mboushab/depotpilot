@@ -118,7 +118,7 @@ export default async function InvoicesPage({
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
-            <thead><tr><Th>Numéro</Th><Th>Client</Th><Th>Box</Th><Th>Statut</Th><Th>Émission</Th><Th>Échéance</Th><Th className="text-right">Total</Th><Th></Th></tr></thead>
+            <thead><tr><Th>Numéro</Th><Th>Client</Th><Th>Box</Th><Th>Statut</Th><Th>Émission</Th><Th>Échéance</Th><Th className="text-right">Total</Th><Th className="text-right">Reste à payer</Th><Th></Th></tr></thead>
             <tbody>
               {invoices.map((invoice) => (
                 <tr key={invoice.id}>
@@ -129,6 +129,9 @@ export default async function InvoicesPage({
                   <Td>{format(invoice.issueDate, "dd/MM/yyyy")}</Td>
                   <Td>{format(invoice.dueDate, "dd/MM/yyyy")}</Td>
                   <Td className="text-right font-medium">{formatCurrency(invoice.totalCents)}</Td>
+                  <Td className={`text-right font-medium ${invoice.status !== "VOID" && invoice.totalCents > invoice.paidCents ? "text-red-600" : "text-muted-foreground"}`}>
+                    {invoice.status === "VOID" ? "-" : formatCurrency(Math.max(invoice.totalCents - invoice.paidCents, 0))}
+                  </Td>
                   <Td className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button asChild variant="outline" size="sm">
@@ -149,7 +152,7 @@ export default async function InvoicesPage({
                 </tr>
               ))}
               {invoices.length === 0 ? (
-                <tr><Td colSpan={8} className="text-center text-muted-foreground">Aucune facture pour ce filtre.</Td></tr>
+                <tr><Td colSpan={9} className="text-center text-muted-foreground">Aucune facture pour ce filtre.</Td></tr>
               ) : null}
             </tbody>
           </Table>
